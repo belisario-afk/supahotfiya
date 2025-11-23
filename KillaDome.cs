@@ -1130,7 +1130,18 @@ namespace Oxide.Plugins
         
         internal PlayerSession GetSession(ulong steamId)
         {
-            _activeSessions.TryGetValue(steamId, out var session);
+            if (_activeSessions == null)
+            {
+                PrintWarning("[KillaDome] Active sessions dictionary is null");
+                return null;
+            }
+            
+            if (!_activeSessions.TryGetValue(steamId, out var session))
+            {
+                LogDebug($"No active session found for player {steamId}");
+                return null;
+            }
+            
             return session;
         }
         
@@ -1346,15 +1357,41 @@ namespace Oxide.Plugins
         [HookMethod("CycleWeapon")]
         public void CycleWeapon(BasePlayer player, string slot, int direction)
         {
-            if (player == null) return;
+            if (player == null)
+            {
+                PrintWarning("[KillaDome] CycleWeapon called with null player");
+                return;
+            }
+            
+            if (string.IsNullOrEmpty(slot))
+            {
+                PrintWarning($"[KillaDome] CycleWeapon called with null/empty slot for player {player.displayName}");
+                return;
+            }
             
             var session = GetSession(player.userID);
-            if (session == null || session.Profile.Loadouts.Count == 0) return;
+            if (session == null || session.Profile.Loadouts.Count == 0)
+            {
+                PrintWarning($"[KillaDome] No session or loadout found for player {player.displayName}");
+                return;
+            }
+            
+            if (_gunConfig == null || _gunConfig.Guns == null || _gunConfig.Guns.Count == 0)
+            {
+                PrintError("[KillaDome] Gun configuration not initialized");
+                return;
+            }
             
             var loadout = session.Profile.Loadouts[0];
             string[] availableWeapons = _gunConfig.GetAllGunIds();
             
-            string currentWeapon = slot == "primary" ? loadout.Primary : loadout.Secondary;
+            if (availableWeapons == null || availableWeapons.Length == 0)
+            {
+                PrintError("[KillaDome] No weapons available in configuration");
+                return;
+            }
+            
+            string currentWeapon = slot.ToLower() == "primary" ? loadout.Primary : loadout.Secondary;
             int currentIndex = Array.IndexOf(availableWeapons, currentWeapon);
             
             if (currentIndex == -1) currentIndex = 0;
@@ -1362,16 +1399,21 @@ namespace Oxide.Plugins
             int newIndex = (currentIndex + direction + availableWeapons.Length) % availableWeapons.Length;
             string newWeapon = availableWeapons[newIndex];
             
-            if (slot == "primary")
+            if (slot.ToLower() == "primary")
             {
                 loadout.Primary = newWeapon;
             }
-            else
+            else if (slot.ToLower() == "secondary")
             {
                 loadout.Secondary = newWeapon;
             }
+            else
+            {
+                PrintWarning($"[KillaDome] Invalid weapon slot: {slot}");
+                return;
+            }
             
-            _saveManager.SavePlayerProfile(session.Profile);
+            _saveManager?.SavePlayerProfile(session.Profile);
             LogDebug($"Player {player.displayName} changed {slot} weapon to {newWeapon}");
         }
         
@@ -1381,25 +1423,51 @@ namespace Oxide.Plugins
         [HookMethod("PurchaseItem")]
         public bool PurchaseItem(ulong steamId, string itemId, int cost)
         {
+            if (string.IsNullOrEmpty(itemId))
+            {
+                PrintWarning($"[KillaDome] PurchaseItem called with null/empty itemId for player {steamId}");
+                return false;
+            }
+            
+            if (cost <= 0)
+            {
+                PrintWarning($"[KillaDome] PurchaseItem called with invalid cost {cost} for player {steamId}");
+                return false;
+            }
+            
+            if (_storeAPI == null || _saveManager == null)
+            {
+                PrintError("[KillaDome] StoreAPI or SaveManager not initialized");
+                return false;
+            }
+            
             var session = GetSession(steamId);
             if (session == null)
             {
                 var player = BasePlayer.FindByID(steamId);
-                if (player == null) return false; // Player must be online
+                if (player == null)
+                {
+                    PrintWarning($"[KillaDome] Player {steamId} not found for purchase");
+                    return false;
+                }
                 
                 var profile = _saveManager.LoadPlayerProfile(steamId);
                 session = new PlayerSession(player, profile);
                 _activeSessions[steamId] = session;
+                
+                LogDebug($"Created session on demand for purchase: {player.displayName}");
             }
             
             if (session.Profile.Tokens < cost)
             {
+                LogDebug($"Player {steamId} cannot afford {itemId} (cost: {cost}, balance: {session.Profile.Tokens})");
                 return false;
             }
             
             if (_storeAPI.PurchaseItem(steamId, itemId, cost))
             {
                 _saveManager.SavePlayerProfile(session.Profile);
+                LogDebug($"Player {steamId} successfully purchased {itemId} for {cost} tokens");
                 return true;
             }
             
@@ -1581,18 +1649,38 @@ namespace Oxide.Plugins
         [HookMethod("CycleArmor")]
         public void CycleArmor(ulong steamId, string slot, int direction)
         {
+            if (string.IsNullOrEmpty(slot))
+            {
+                PrintWarning($"[KillaDome] CycleArmor called with null/empty slot for player {steamId}");
+                return;
+            }
+            
             var session = GetSession(steamId);
-            if (session == null || session.Profile.Loadouts.Count == 0) return;
+            if (session == null || session.Profile.Loadouts.Count == 0)
+            {
+                PrintWarning($"[KillaDome] No session or loadout found for player {steamId}");
+                return;
+            }
+            
+            if (_outfitConfig == null || _outfitConfig.Armors == null)
+            {
+                PrintError("[KillaDome] Outfit configuration not initialized");
+                return;
+            }
             
             var loadout = session.Profile.Loadouts[0];
             
             var ownedArmor = _outfitConfig.Armors
-                .Where(a => a.Slot == slot && session.Profile.OwnedArmor.Contains(a.ItemShortname))
+                .Where(a => a.Slot == slot.ToLower() && session.Profile.OwnedArmor.Contains(a.ItemShortname))
                 .ToArray();
             
-            if (ownedArmor.Length == 0) return;
+            if (ownedArmor.Length == 0)
+            {
+                LogDebug($"Player {steamId} has no owned armor for slot {slot}");
+                return;
+            }
             
-            string currentArmorShortname = slot switch
+            string currentArmorShortname = slot.ToLower() switch
             {
                 "head" => loadout.ArmorHead,
                 "chest" => loadout.ArmorChest,
@@ -1608,14 +1696,30 @@ namespace Oxide.Plugins
             int newIndex = (currentIndex + direction + ownedArmor.Length) % ownedArmor.Length;
             string newArmor = ownedArmor[newIndex].ItemShortname;
             
-            switch (slot)
+            switch (slot.ToLower())
             {
-                case "head": loadout.ArmorHead = newArmor; break;
-                case "chest": loadout.ArmorChest = newArmor; break;
-                case "legs": loadout.ArmorLegs = newArmor; break;
-                case "hands": loadout.ArmorHands = newArmor; break;
-                case "feet": loadout.ArmorFeet = newArmor; break;
+                case "head":
+                    loadout.ArmorHead = newArmor;
+                    break;
+                case "chest":
+                    loadout.ArmorChest = newArmor;
+                    break;
+                case "legs":
+                    loadout.ArmorLegs = newArmor;
+                    break;
+                case "hands":
+                    loadout.ArmorHands = newArmor;
+                    break;
+                case "feet":
+                    loadout.ArmorFeet = newArmor;
+                    break;
+                default:
+                    PrintWarning($"[KillaDome] Unknown armor slot: {slot}");
+                    return;
             }
+            
+            _saveManager?.SavePlayerProfile(session.Profile);
+            LogDebug($"Player {steamId} changed {slot} armor to {newArmor}");
         }
         
         /// <summary>

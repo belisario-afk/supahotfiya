@@ -1539,6 +1539,11 @@ namespace Oxide.Plugins
         
         private string GetArmorDisplayName(string armorId)
         {
+            if (string.IsNullOrEmpty(armorId))
+            {
+                return "Unknown Armor";
+            }
+            
             // Map armor IDs to display names
             switch (armorId.ToLower())
             {
@@ -1559,9 +1564,20 @@ namespace Oxide.Plugins
                 case "tactical.gloves": return "Tactical Gloves";
                 case "burlap.gloves": return "Burlap Gloves";
                 default:
-                    // Try to extract a readable name from the armor ID
-                    string name = armorId.Replace(".", " ").Replace("_", " ");
-                    return char.ToUpper(name[0]) + name.Substring(1);
+                    try
+                    {
+                        // Try to extract a readable name from the armor ID
+                        string name = armorId.Replace(".", " ").Replace("_", " ");
+                        if (name.Length > 0)
+                        {
+                            return char.ToUpper(name[0]) + name.Substring(1);
+                        }
+                        return armorId; // Return as-is if empty after processing
+                    }
+                    catch
+                    {
+                        return armorId; // Return original if any error
+                    }
             }
         }
         
@@ -2782,17 +2798,49 @@ namespace Oxide.Plugins
         [ConsoleCommand("killaui.weapon.cycle")]
         private void CmdWeaponCycle(ConsoleSystem.Arg arg)
         {
-            var player = arg.Player();
-            if (player == null) return;
+            var player = arg?.Player();
+            if (player == null || !player.IsConnected)
+            {
+                return;
+            }
             
             string slot = arg.GetString(0, "primary");
             int direction = arg.GetInt(1, 1);
             
-            // Call KillaDome to cycle weapon
-            KillaDome?.Call("CycleWeapon", player, slot, direction);
+            // Validate slot
+            if (slot != "primary" && slot != "secondary")
+            {
+                PrintWarning($"[KillaUIv2] Invalid weapon slot: {slot}");
+                return;
+            }
             
-            // Refresh UI
-            ShowMainUI(player, "loadouts");
+            // Validate direction
+            if (direction != 1 && direction != -1)
+            {
+                PrintWarning($"[KillaUIv2] Invalid direction: {direction}");
+                direction = 1; // Default to next
+            }
+            
+            // Verify KillaDome is available
+            if (KillaDome == null || !KillaDome.IsLoaded)
+            {
+                player.ChatMessage("Weapon cycling unavailable. Please contact an administrator.");
+                return;
+            }
+            
+            try
+            {
+                // Call KillaDome to cycle weapon
+                KillaDome.Call("CycleWeapon", player, slot, direction);
+                
+                // Refresh UI
+                ShowMainUI(player, "loadouts");
+            }
+            catch (Exception ex)
+            {
+                PrintError($"[KillaUIv2] Error cycling weapon: {ex.Message}");
+                player.ChatMessage("Error cycling weapon. Please try again.");
+            }
         }
         
         [ConsoleCommand("killaui.attachment.category")]
@@ -2828,8 +2876,11 @@ namespace Oxide.Plugins
         [ConsoleCommand("killaui.attachment.apply")]
         private void CmdAttachmentApply(ConsoleSystem.Arg arg)
         {
-            var player = arg.Player();
-            if (player == null) return;
+            var player = arg?.Player();
+            if (player == null || !player.IsConnected)
+            {
+                return;
+            }
             
             if (arg.Args == null || arg.Args.Length == 0)
             {
@@ -2838,17 +2889,38 @@ namespace Oxide.Plugins
             }
             
             string attachmentId = arg.Args[0];
+            if (string.IsNullOrEmpty(attachmentId))
+            {
+                player.ChatMessage("Error: Invalid attachment ID.");
+                return;
+            }
+            
+            // Verify KillaDome is available
+            if (KillaDome == null || !KillaDome.IsLoaded)
+            {
+                player.ChatMessage("Attachment system unavailable. Please contact an administrator.");
+                return;
+            }
+            
             var state = GetPlayerState(player.userID);
             
-            // Call KillaDome to apply attachment
             try
             {
-                KillaDome?.Call("ApplyAttachment", player.userID, state.CurrentEditingWeaponSlot, state.CurrentAttachmentCategory, attachmentId);
-                player.ChatMessage($"Attachment applied to {state.CurrentEditingWeaponSlot} weapon!");
+                // Call KillaDome to apply attachment
+                var result = KillaDome.Call("ApplyAttachment", player.userID, state.CurrentEditingWeaponSlot, state.CurrentAttachmentCategory, attachmentId);
+                
+                if (result == null || (result is bool && !(bool)result))
+                {
+                    player.ChatMessage("Failed to apply attachment. You may not own this item.");
+                }
+                else
+                {
+                    player.ChatMessage($"Attachment applied to {state.CurrentEditingWeaponSlot} weapon!");
+                }
             }
             catch (Exception ex)
             {
-                Puts($"[KillaUIv2] Error applying attachment: {ex.Message}");
+                PrintError($"[KillaUIv2] Error applying attachment: {ex.Message}");
                 player.ChatMessage("Failed to apply attachment. Contact an administrator.");
             }
             
@@ -3005,8 +3077,11 @@ namespace Oxide.Plugins
         [ConsoleCommand("killaui.store.purchase")]
         private void CmdStorePurchase(ConsoleSystem.Arg arg)
         {
-            var player = arg.Player();
-            if (player == null) return;
+            var player = arg?.Player();
+            if (player == null || !player.IsConnected)
+            {
+                return;
+            }
             
             if (arg.Args == null || arg.Args.Length < 2)
             {
@@ -3017,23 +3092,44 @@ namespace Oxide.Plugins
             string itemId = arg.Args[0];
             int price = arg.GetInt(1, 0);
             
+            if (string.IsNullOrEmpty(itemId))
+            {
+                player.ChatMessage("Error: Invalid item ID.");
+                return;
+            }
+            
+            if (price <= 0)
+            {
+                player.ChatMessage("Error: Invalid price.");
+                return;
+            }
+            
+            // Verify KillaDome is available
+            if (KillaDome == null || !KillaDome.IsLoaded)
+            {
+                player.ChatMessage("Store unavailable. Please contact an administrator.");
+                return;
+            }
+            
             // Call KillaDome to purchase item
             try
             {
-                var result = KillaDome?.Call("PurchaseItem", player.userID, itemId, price);
+                var result = KillaDome.Call("PurchaseItem", player.userID, itemId, price);
                 
                 if (result != null && (bool)result)
                 {
                     player.ChatMessage($"✓ Successfully purchased {itemId} for {price} Blood Tokens!");
+                    Effect.server.Run("assets/prefabs/deployable/vendingmachine/effects/buy.prefab", player.transform.position);
                 }
                 else
                 {
                     player.ChatMessage("❌ Purchase failed. Not enough Blood Tokens or item already owned.");
+                    Effect.server.Run("assets/prefabs/deployable/vendingmachine/effects/deny.prefab", player.transform.position);
                 }
             }
             catch (Exception ex)
             {
-                Puts($"[KillaUIv2] Error during purchase: {ex.Message}");
+                PrintError($"[KillaUIv2] Error during purchase: {ex.Message}");
                 player.ChatMessage("❌ Purchase failed. Contact an administrator.");
             }
             

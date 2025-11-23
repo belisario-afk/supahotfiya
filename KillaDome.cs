@@ -1583,11 +1583,21 @@ namespace Oxide.Plugins
             
             return new Dictionary<string, object>
             {
-                ["TotalKills"] = session.Profile.TotalKills,
-                ["TotalDeaths"] = session.Profile.TotalDeaths,
-                ["Tokens"] = session.Profile.Tokens,
-                ["MatchesPlayed"] = session.Profile.MatchesPlayed,
-                ["IsVIP"] = session.Profile.IsVIP
+                // Use lowercase keys to match what KillaUIv2 expects
+                ["kills"] = session.Profile.TotalKills,
+                ["deaths"] = session.Profile.TotalDeaths,
+                ["blood_tokens"] = session.Profile.Tokens,
+                ["matches_played"] = session.Profile.MatchesPlayed,
+                ["vip_status"] = session.Profile.IsVIP ? "true" : "false",
+                
+                // Provide defaults for stats not yet tracked
+                ["headshots"] = 0,
+                ["accuracy"] = 0,
+                ["longest_kill"] = 0,
+                ["best_streak"] = 0,
+                ["wins"] = 0,
+                ["losses"] = 0,
+                ["total_playtime"] = 0
             };
         }
         

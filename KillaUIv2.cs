@@ -2828,14 +2828,26 @@ namespace Oxide.Plugins
             
             if (arg.Args == null || arg.Args.Length < 2) return;
             
-            string slot = arg.Args[0]; // e.g., "head", "chest", "legs", "torso", "hands"
+            string uiSlot = arg.Args[0]; // UI slot name like "chest_armor", "leg_armor", etc.
             int direction = arg.GetInt(1, 1);
+            
+            // Map UI slot names to KillaDome logical slot names
+            string killaDomeSlot = uiSlot switch
+            {
+                "head" => "head",
+                "chest_armor" => "chest",
+                "chest_clothing" => "chest",
+                "pants" => "legs",
+                "leg_armor" => "legs",
+                "feet" => "feet",
+                _ => uiSlot // fallback to original if not mapped
+            };
             
             // Get player state
             var state = GetPlayerState(player.userID);
             
-            // Call KillaDome to cycle armor type
-            KillaDome?.Call("CycleArmor", player.userID, slot, direction);
+            // Call KillaDome to cycle armor type with mapped slot name
+            KillaDome?.Call("CycleArmor", player.userID, killaDomeSlot, direction);
             
             // Refresh UI to show the new armor type
             ShowMainUI(player, "loadouts");

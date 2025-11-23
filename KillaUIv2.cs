@@ -855,20 +855,6 @@ namespace Oxide.Plugins
                     RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
                 }, primaryPanel);
             }
-            else
-            {
-                // ImageLibrary not available - show placeholder
-                container.Add(new CuiLabel
-                {
-                    Text = {
-                        Text = "📷\n[Weapon Image]",
-                        FontSize = 14,
-                        Align = TextAnchor.MiddleCenter,
-                        Color = COLOR_TEXT_DIM
-                    },
-                    RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                }, primaryPanel);
-            }
             
             // SECONDARY WEAPON SECTION (Right)
             var secondaryPanel = container.Add(new CuiPanel

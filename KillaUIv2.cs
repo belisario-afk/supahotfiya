@@ -426,7 +426,17 @@ namespace Oxide.Plugins
             Puts($"[DEBUG] RenderPlayTab called for {player.displayName}");
             
             // Get session data from KillaDome
-            var sessionData = KillaDome?.Call("GetSessionData", player.userID) as Dictionary<string, object>;
+            Puts($"[DEBUG] About to call GetSessionData with userID: {player.userID}");
+            Puts($"[DEBUG] KillaDome IsLoaded: {KillaDome?.IsLoaded}");
+            
+            object callResult = null;
+            if (KillaDome != null && KillaDome.IsLoaded)
+            {
+                callResult = KillaDome.Call("GetSessionData", player.userID);
+                Puts($"[DEBUG] Call returned: {(callResult == null ? "NULL" : callResult.GetType().Name)}");
+            }
+            
+            var sessionData = callResult as Dictionary<string, object>;
             
             Puts($"[DEBUG] KillaDome plugin reference: {(KillaDome == null ? "NULL" : "OK")}");
             Puts($"[DEBUG] sessionData: {(sessionData == null ? "NULL" : $"has {sessionData.Count} keys")}");

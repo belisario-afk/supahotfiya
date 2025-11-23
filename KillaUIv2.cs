@@ -37,6 +37,17 @@ namespace Oxide.Plugins
         // UI Constants
         private const string UI_MAIN = "KillaUI_Main";
         private const string UI_PANEL = "KillaUI_Panel";
+        private const string DEFAULT_TAB = "play";
+        
+        // Valid tab names for validation
+        private static readonly string[] VALID_TABS = { "play", "loadouts", "store", "stats", "settings" };
+        
+        // Effect prefab paths
+        private const string EFFECT_BUY = "assets/prefabs/deployable/vendingmachine/effects/buy.prefab";
+        private const string EFFECT_DENY = "assets/prefabs/deployable/vendingmachine/effects/deny.prefab";
+        
+        // Timing constants
+        private const float DEPENDENCY_CHECK_DELAY = 2f; // Delay before checking plugin dependencies
         
         // Screen dimensions (1920x1080 reference)
         private const float SCREEN_WIDTH = 1920f;
@@ -216,7 +227,7 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             // Check for required dependencies with retry logic
-            timer.Once(2f, () =>
+            timer.Once(DEPENDENCY_CHECK_DELAY, () =>
             {
                 if (KillaDome == null || !KillaDome.IsLoaded)
                 {
@@ -337,7 +348,7 @@ namespace Oxide.Plugins
             // Validate tab parameter
             if (string.IsNullOrEmpty(tab))
             {
-                tab = "play";
+                tab = DEFAULT_TAB;
             }
             
             try
@@ -2751,14 +2762,13 @@ namespace Oxide.Plugins
                 return;
             }
             
-            string tab = arg.GetString(0, "play");
+            string tab = arg.GetString(0, DEFAULT_TAB);
             
             // Validate tab name
-            string[] validTabs = { "play", "loadouts", "store", "stats", "settings" };
-            if (!validTabs.Contains(tab.ToLower()))
+            if (!VALID_TABS.Contains(tab.ToLower()))
             {
                 PrintWarning($"[KillaUIv2] Invalid tab requested: {tab}");
-                tab = "play";
+                tab = DEFAULT_TAB;
             }
             
             // Update state
@@ -3119,12 +3129,12 @@ namespace Oxide.Plugins
                 if (result != null && (bool)result)
                 {
                     player.ChatMessage($"✓ Successfully purchased {itemId} for {price} Blood Tokens!");
-                    Effect.server.Run("assets/prefabs/deployable/vendingmachine/effects/buy.prefab", player.transform.position);
+                    Effect.server.Run(EFFECT_BUY, player.transform.position);
                 }
                 else
                 {
                     player.ChatMessage("❌ Purchase failed. Not enough Blood Tokens or item already owned.");
-                    Effect.server.Run("assets/prefabs/deployable/vendingmachine/effects/deny.prefab", player.transform.position);
+                    Effect.server.Run(EFFECT_DENY, player.transform.position);
                 }
             }
             catch (Exception ex)

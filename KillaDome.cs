@@ -64,6 +64,11 @@ namespace Oxide.Plugins
         private const string PERMISSION_ADMIN = "killadome.admin";
         private const string PERMISSION_VIP = "killadome.vip";
         
+        // Timing constants for delayed initialization and checks
+        private const float DEPENDENCY_CHECK_DELAY = 2f; // Delay before checking plugin dependencies
+        private const float IMAGE_LOAD_DELAY = 5f; // Delay before loading images from ImageLibrary
+        private const float UI_SHOW_DELAY = 1f; // Delay before showing UI on player connect
+        
         #endregion
         
         #region Gun & Image Configuration
@@ -538,7 +543,7 @@ namespace Oxide.Plugins
             Puts("[KillaDome] OnServerInitialized called");
             
             // Check UI plugin dependencies with delayed retry
-            timer.Once(2f, () =>
+            timer.Once(DEPENDENCY_CHECK_DELAY, () =>
             {
                 bool hasUI = false;
                 
@@ -582,7 +587,7 @@ namespace Oxide.Plugins
             }
             
             // Load images after server is ready
-            timer.Once(5f, () => LoadImages());
+            timer.Once(IMAGE_LOAD_DELAY, () => LoadImages());
         }
         
         private void LoadImages()
@@ -744,7 +749,7 @@ namespace Oxide.Plugins
                     TeleportToLobby(player);
                     
                     // Show lobby UI via KillaUI plugin with delay
-                    timer.Once(1f, () =>
+                    timer.Once(UI_SHOW_DELAY, () =>
                     {
                         if (player == null || !player.IsConnected)
                         {
@@ -1399,11 +1404,11 @@ namespace Oxide.Plugins
             int newIndex = (currentIndex + direction + availableWeapons.Length) % availableWeapons.Length;
             string newWeapon = availableWeapons[newIndex];
             
-            if (slot.ToLower() == "primary")
+            if (string.Equals(slot, "primary", StringComparison.OrdinalIgnoreCase))
             {
                 loadout.Primary = newWeapon;
             }
-            else if (slot.ToLower() == "secondary")
+            else if (string.Equals(slot, "secondary", StringComparison.OrdinalIgnoreCase))
             {
                 loadout.Secondary = newWeapon;
             }
@@ -1671,7 +1676,7 @@ namespace Oxide.Plugins
             var loadout = session.Profile.Loadouts[0];
             
             var ownedArmor = _outfitConfig.Armors
-                .Where(a => a.Slot == slot.ToLower() && session.Profile.OwnedArmor.Contains(a.ItemShortname))
+                .Where(a => string.Equals(a.Slot, slot, StringComparison.OrdinalIgnoreCase) && session.Profile.OwnedArmor.Contains(a.ItemShortname))
                 .ToArray();
             
             if (ownedArmor.Length == 0)

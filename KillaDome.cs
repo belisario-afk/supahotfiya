@@ -1161,7 +1161,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Add player to queue - called by KillaUI plugin
         /// </summary>
-        [HookMethod("AddToQueue")]
+        
         public void AddToQueue(ulong steamId)
         {
             _domeManager?.AddToQueue(steamId);
@@ -1170,7 +1170,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Cycle weapon selection - called by KillaUI plugin
         /// </summary>
-        [HookMethod("CycleWeapon")]
+        
         public void CycleWeapon(BasePlayer player, string slot, int direction)
         {
             if (player == null) return;
@@ -1205,7 +1205,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Purchase item - called by KillaUI plugin
         /// </summary>
-        [HookMethod("PurchaseItem")]
+        
         public bool PurchaseItem(ulong steamId, string itemId, int cost)
         {
             var session = GetSession(steamId);
@@ -1236,7 +1236,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Purchase armor - called by KillaUI plugin
         /// </summary>
-        [HookMethod("PurchaseArmor")]
+        
         public bool PurchaseArmor(ulong steamId, string itemShortname, int cost)
         {
             var session = GetSession(steamId);
@@ -1270,7 +1270,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Apply skin to weapon - called by KillaUI plugin
         /// </summary>
-        [HookMethod("ApplySkin")]
+        
         public bool ApplySkin(ulong steamId, string weapon, string skinId)
         {
             var session = GetSession(steamId);
@@ -1293,7 +1293,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Apply attachment to weapon - called by KillaUI plugin
         /// </summary>
-        [HookMethod("ApplyAttachment")]
+        
         public bool ApplyAttachment(ulong steamId, string weapon, string attachmentSlot, string attachmentId)
         {
             var session = GetSession(steamId);
@@ -1316,7 +1316,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Set attachment category - called by KillaUI plugin
         /// </summary>
-        [HookMethod("SetAttachmentCategory")]
+        
         public void SetAttachmentCategory(ulong steamId, string category)
         {
             var session = GetSession(steamId);
@@ -1329,7 +1329,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Set editing weapon slot - called by KillaUI plugin
         /// </summary>
-        [HookMethod("SetEditingWeaponSlot")]
+        
         public void SetEditingWeaponSlot(ulong steamId, string slot)
         {
             var session = GetSession(steamId);
@@ -1342,7 +1342,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Set store category - called by KillaUI plugin
         /// </summary>
-        [HookMethod("SetStoreCategory")]
+        
         public void SetStoreCategory(ulong steamId, string category)
         {
             var session = GetSession(steamId);
@@ -1357,7 +1357,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Change store page - called by KillaUI plugin
         /// </summary>
-        [HookMethod("ChangeStorePage")]
+        
         public void ChangeStorePage(ulong steamId, string direction)
         {
             var session = GetSession(steamId);
@@ -1392,7 +1392,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Set loadout tab - called by KillaUI plugin
         /// </summary>
-        [HookMethod("SetLoadoutTab")]
+        
         public void SetLoadoutTab(ulong steamId, string tab)
         {
             var session = GetSession(steamId);
@@ -1405,7 +1405,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Cycle armor - called by KillaUI plugin
         /// </summary>
-        [HookMethod("CycleArmor")]
+        
         public void CycleArmor(ulong steamId, string slot, int direction)
         {
             var session = GetSession(steamId);
@@ -1448,7 +1448,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Get session data for UI - called by KillaUI plugin
         /// </summary>
-        [HookMethod("GetSessionData")]
+        
         public Dictionary<string, object> GetSessionData(ulong steamId)
         {
             Puts($"[DEBUG] GetSessionData called for steamId: {steamId}");
@@ -1492,7 +1492,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Get current loadout data for UI - called by KillaUI plugin
         /// </summary>
-        [HookMethod("GetCurrentLoadout")]
+        
         public Dictionary<string, object> GetCurrentLoadout(ulong steamId)
         {
             var session = GetSession(steamId);
@@ -1540,7 +1540,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Get weapon info for UI - called by KillaUI plugin
         /// </summary>
-        [HookMethod("GetWeaponInfo")]
+        
         public Dictionary<string, object> GetWeaponInfo(string weaponId)
         {
             if (_gunConfig.Guns.ContainsKey(weaponId))
@@ -1565,7 +1565,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Get available guns for store - called by KillaUI plugin
         /// </summary>
-        [HookMethod("GetAvailableGuns")]
+        
         public List<Dictionary<string, object>> GetAvailableGuns()
         {
             var result = new List<Dictionary<string, object>>();
@@ -1587,7 +1587,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Get player profile data for UI - called by KillaUI plugin
         /// </summary>
-        [HookMethod("GetPlayerProfile")]
+        
         public Dictionary<string, object> GetPlayerProfile(ulong steamId)
         {
             Puts($"[DEBUG] GetPlayerProfile called for steamId: {steamId}");
@@ -1637,7 +1637,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Reset player loadout to default - called by KillaUI plugin
         /// </summary>
-        [HookMethod("ResetLoadout")]
+        
         public void ResetLoadout(ulong steamId)
         {
             var session = GetSession(steamId);
@@ -1657,7 +1657,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Reset player outfit to default - called by KillaUI plugin
         /// </summary>
-        [HookMethod("ResetOutfit")]
+        
         public void ResetOutfit(ulong steamId)
         {
             var session = GetSession(steamId);
@@ -1677,7 +1677,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Cycle armor skin for a specific slot - called by KillaUI plugin
         /// </summary>
-        [HookMethod("CycleArmorSkin")]
+        
         public void CycleArmorSkin(ulong steamId, int armorSlot, int direction)
         {
             var session = GetSession(steamId);
@@ -1695,7 +1695,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Get equipped attachments for a weapon - called by KillaUI plugin
         /// </summary>
-        [HookMethod("GetEquippedAttachments")]
+        
         public Dictionary<string, string> GetEquippedAttachments(ulong steamId, string weaponSlot)
         {
             var session = GetSession(steamId);
@@ -1713,7 +1713,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Get player settings - called by KillaUI plugin
         /// </summary>
-        [HookMethod("GetPlayerSettings")]
+        
         public Dictionary<string, bool> GetPlayerSettings(ulong steamId)
         {
             var session = GetSession(steamId);
@@ -1741,7 +1741,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Set player setting - called by KillaUI plugin
         /// </summary>
-        [HookMethod("SetPlayerSetting")]
+        
         public void SetPlayerSetting(ulong steamId, string settingName, bool value)
         {
             var session = GetSession(steamId);
@@ -1757,7 +1757,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Set player blood tokens (admin feature) - called by KillaUI plugin
         /// </summary>
-        [HookMethod("SetBloodTokens")]
+        
         public void SetBloodTokens(ulong steamId, int amount)
         {
             var session = GetSession(steamId);
@@ -1779,7 +1779,7 @@ namespace Oxide.Plugins
         /// <summary>
         /// Check if player owns an item - called by KillaUI plugin
         /// </summary>
-        [HookMethod("CheckOwnership")]
+        
         public bool CheckOwnership(ulong steamId, string itemId)
         {
             var session = GetSession(steamId);

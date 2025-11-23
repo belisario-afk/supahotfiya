@@ -516,8 +516,8 @@ namespace Oxide.Plugins
                 try
                 {
                     tokens = sessionData.ContainsKey("Tokens") ? Convert.ToInt32(sessionData["Tokens"]) : 0;
-                    kills = sessionData.ContainsKey("totalKills") ? Convert.ToInt32(sessionData["totalKills"]) : 0;
-                    int deaths = sessionData.ContainsKey("totalDeaths") ? Convert.ToInt32(sessionData["totalDeaths"]) : 0;
+                    kills = sessionData.ContainsKey("TotalKills") ? Convert.ToInt32(sessionData["TotalKills"]) : 0;
+                    int deaths = sessionData.ContainsKey("TotalDeaths") ? Convert.ToInt32(sessionData["TotalDeaths"]) : 0;
                     kd = deaths > 0 ? (float)kills / deaths : kills;
                 }
                 catch (Exception ex)
@@ -810,45 +810,50 @@ namespace Oxide.Plugins
                 }
             }, primaryPanel);
             
-            // Primary weapon image from ImageLibrary
-            var imageLibrary = plugins.Find("ImageLibrary");
-            if (imageLibrary != null)
+            // Primary weapon image - get from KillaDome gun configuration
+            try
             {
-                try
+                var weaponInfoRaw = KillaDome?.Call("GetWeaponInfo", primaryWeapon);
+                if (weaponInfoRaw != null)
                 {
-                    string imageUrl = (string)imageLibrary.Call("GetImage", primaryWeapon, DEFAULT_SKIN_ID);
-                    if (!string.IsNullOrEmpty(imageUrl))
+                    var weaponInfo = weaponInfoRaw as Dictionary<string, object>;
+                    if (weaponInfo != null && weaponInfo.ContainsKey("ImageUrl"))
                     {
-                        container.Add(new CuiElement
+                        string imageUrl = weaponInfo["ImageUrl"]?.ToString();
+                        if (!string.IsNullOrEmpty(imageUrl))
                         {
-                            Name = "primary_weapon_image",
-                            Parent = primaryPanel,
-                            Components =
+                            container.Add(new CuiElement
                             {
-                                new CuiRawImageComponent { Url = imageUrl },
-                                new CuiRectTransformComponent { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                            }
-                        });
-                    }
-                    else
-                    {
-                        // Fallback if image not found
-                        container.Add(new CuiLabel
+                                Name = "primary_weapon_image",
+                                Parent = primaryPanel,
+                                Components =
+                                {
+                                    new CuiRawImageComponent { Url = imageUrl },
+                                    new CuiRectTransformComponent { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                                }
+                            });
+                        }
+                        else
                         {
-                            Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
-                            RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                        }, primaryPanel);
+                            // Fallback if image URL is empty
+                            container.Add(new CuiLabel
+                            {
+                                Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                                RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                            }, primaryPanel);
+                        }
                     }
                 }
-                catch
+            }
+            catch (Exception ex)
+            {
+                Puts($"[KillaUIv2] Error loading weapon image: {ex.Message}");
+                // Fallback on error
+                container.Add(new CuiLabel
                 {
-                    // Fallback on error
-                    container.Add(new CuiLabel
-                    {
-                        Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
-                        RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                    }, primaryPanel);
-                }
+                    Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                    RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                }, primaryPanel);
             }
             else
             {
@@ -925,56 +930,48 @@ namespace Oxide.Plugins
                 }
             }, secondaryPanel);
             
-            // Secondary weapon image from ImageLibrary
-            if (imageLibrary != null)
+            // Secondary weapon image - get from KillaDome gun configuration
+            try
             {
-                try
+                var weaponInfoRaw = KillaDome?.Call("GetWeaponInfo", secondaryWeapon);
+                if (weaponInfoRaw != null)
                 {
-                    string imageUrl = (string)imageLibrary.Call("GetImage", secondaryWeapon, DEFAULT_SKIN_ID);
-                    if (!string.IsNullOrEmpty(imageUrl))
+                    var weaponInfo = weaponInfoRaw as Dictionary<string, object>;
+                    if (weaponInfo != null && weaponInfo.ContainsKey("ImageUrl"))
                     {
-                        container.Add(new CuiElement
+                        string imageUrl = weaponInfo["ImageUrl"]?.ToString();
+                        if (!string.IsNullOrEmpty(imageUrl))
                         {
-                            Name = "secondary_weapon_image",
-                            Parent = secondaryPanel,
-                            Components =
+                            container.Add(new CuiElement
                             {
-                                new CuiRawImageComponent { Url = imageUrl },
-                                new CuiRectTransformComponent { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                            }
-                        });
-                    }
-                    else
-                    {
-                        // Fallback if image not found
-                        container.Add(new CuiLabel
+                                Name = "secondary_weapon_image",
+                                Parent = secondaryPanel,
+                                Components =
+                                {
+                                    new CuiRawImageComponent { Url = imageUrl },
+                                    new CuiRectTransformComponent { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                                }
+                            });
+                        }
+                        else
                         {
-                            Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
-                            RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                        }, secondaryPanel);
+                            // Fallback if image URL is empty
+                            container.Add(new CuiLabel
+                            {
+                                Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                                RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                            }, secondaryPanel);
+                        }
                     }
-                }
-                catch
-                {
-                    // Fallback on error
-                    container.Add(new CuiLabel
-                    {
-                        Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
-                        RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                    }, secondaryPanel);
                 }
             }
-            else
+            catch (Exception ex)
             {
-                // ImageLibrary not available - show placeholder
+                Puts($"[KillaUIv2] Error loading secondary weapon image: {ex.Message}");
+                // Fallback on error
                 container.Add(new CuiLabel
                 {
-                    Text = {
-                        Text = "📷\n[Weapon Image]",
-                        FontSize = 14,
-                        Align = TextAnchor.MiddleCenter,
-                        Color = COLOR_TEXT_DIM
-                    },
+                    Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
                     RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
                 }, secondaryPanel);
             }

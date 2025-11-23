@@ -1781,6 +1781,8 @@ namespace Oxide.Plugins
             return new Dictionary<string, object>
             {
                 ["Tokens"] = session.Profile.Tokens,
+                ["TotalKills"] = session.Profile.TotalKills,
+                ["TotalDeaths"] = session.Profile.TotalDeaths,
                 ["EditingWeaponSlot"] = session.EditingWeaponSlot,
                 ["SelectedLoadoutTab"] = session.SelectedLoadoutTab,
                 ["SelectedAttachmentCategory"] = session.SelectedAttachmentCategory,

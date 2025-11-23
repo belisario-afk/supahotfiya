@@ -504,44 +504,82 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PERMISSION_ADMIN, this);
             permission.RegisterPermission(PERMISSION_VIP, this);
             
-            // Initialize gun configuration
-            _gunConfig = new GunConfig();
-            _outfitConfig = new OutfitConfig();
-            
-            // Initialize all systems
-            _saveManager = new SaveManager(this, _config);
-            _antiExploit = new AntiExploit(this);
-            _tokenEconomy = new BloodTokenEconomy(this, _config);
-            _attachmentSystem = new AttachmentSystem(this, _config);
-            _weaponProgression = new WeaponProgression(this, _config);
-            _vfxManager = new VFXManager(this);
-            _sfxManager = new SFXManager(this);
-            _forgeStation = new ForgeStationSystem(this, _config, _tokenEconomy, _attachmentSystem, _weaponProgression);
-            _loadoutEditor = new LoadoutEditor(this, _attachmentSystem);
-            _storeAPI = new StoreAPI(this, _config, _tokenEconomy);
-            _domeManager = new DomeManager(this, _config);
-            _telemetry = new TelemetrySystem(this);
-            
-            LogDebug("KillaDome initialized successfully");
+            try
+            {
+                // Initialize gun configuration
+                _gunConfig = new GunConfig();
+                _outfitConfig = new OutfitConfig();
+                
+                // Initialize all systems with error handling
+                _saveManager = new SaveManager(this, _config);
+                _antiExploit = new AntiExploit(this);
+                _tokenEconomy = new BloodTokenEconomy(this, _config);
+                _attachmentSystem = new AttachmentSystem(this, _config);
+                _weaponProgression = new WeaponProgression(this, _config);
+                _vfxManager = new VFXManager(this);
+                _sfxManager = new SFXManager(this);
+                _forgeStation = new ForgeStationSystem(this, _config, _tokenEconomy, _attachmentSystem, _weaponProgression);
+                _loadoutEditor = new LoadoutEditor(this, _attachmentSystem);
+                _storeAPI = new StoreAPI(this, _config, _tokenEconomy);
+                _domeManager = new DomeManager(this, _config);
+                _telemetry = new TelemetrySystem(this);
+                
+                LogDebug("KillaDome initialized successfully");
+            }
+            catch (Exception ex)
+            {
+                PrintError($"Critical error during initialization: {ex.Message}\n{ex.StackTrace}");
+                throw; // Re-throw to prevent plugin from loading with broken state
+            }
         }
         
         private void OnServerInitialized()
         {
             Puts("[KillaDome] OnServerInitialized called");
-            Puts($"[KillaDome] KillaUI reference is null: {KillaUI == null}");
-            Puts($"[KillaDome] KillaUI is loaded: {KillaUI?.IsLoaded}");
             
-            if (KillaUI != null && KillaUI.IsLoaded)
+            // Check UI plugin dependencies with delayed retry
+            timer.Once(2f, () =>
             {
-                Puts("[KillaDome] Successfully connected to KillaUI plugin");
-            }
-            else
-            {
-                PrintWarning("[KillaDome] KillaUI plugin not found or not loaded. UI features will not work.");
-            }
+                bool hasUI = false;
+                
+                // Check for KillaUIv2 (new UI)
+                if (KillaUIv2 != null && KillaUIv2.IsLoaded)
+                {
+                    Puts("[KillaDome] Successfully connected to KillaUIv2 plugin (new UI system)");
+                    hasUI = true;
+                }
+                else
+                {
+                    PrintWarning("[KillaDome] KillaUIv2 plugin not found or not loaded.");
+                }
+                
+                // Check for deprecated KillaUI v1
+                if (KillaUI != null && KillaUI.IsLoaded)
+                {
+                    PrintWarning("[KillaDome] Old KillaUI v1 detected. This version is deprecated.");
+                    PrintWarning("[KillaDome] Please upgrade to KillaUIv2 for improved functionality.");
+                    hasUI = true;
+                }
+                
+                if (!hasUI)
+                {
+                    PrintError("[KillaDome] No UI plugin found! Install KillaUIv2 for UI features.");
+                }
+                
+                // Check ImageLibrary
+                if (ImageLibrary == null || !ImageLibrary.IsLoaded)
+                {
+                    PrintWarning("[KillaDome] ImageLibrary plugin not found. Images will not display.");
+                    PrintWarning("[KillaDome] Install ImageLibrary plugin for full functionality.");
+                }
+            });
             
-            timer.Every(_config.AutoSaveInterval, () => AutoSaveAllPlayers());
-            LogDebug("Auto-save timer started");
+            // Start auto-save timer
+            if (_config?.AutoSaveInterval > 0)
+            {
+                timer.Every(_config.AutoSaveInterval, () => AutoSaveAllPlayers());
+                LogDebug($"Auto-save timer started (interval: {_config.AutoSaveInterval}s)");
+            }
             
             // Load images after server is ready
             timer.Once(5f, () => LoadImages());
@@ -551,121 +589,260 @@ namespace Oxide.Plugins
         {
             if (ImageLibrary == null || !ImageLibrary.IsLoaded)
             {
-                PrintWarning("ImageLibrary not loaded. Images will not display. Please install ImageLibrary plugin.");
+                PrintWarning("[KillaDome] ImageLibrary not loaded. Images will not display.");
+                PrintWarning("[KillaDome] Please install ImageLibrary plugin for image support.");
                 return;
             }
             
-            // Load gun images
-            foreach (var gun in _gunConfig.Guns.Values)
+            if (_gunConfig == null || _outfitConfig == null)
             {
-                if (!string.IsNullOrEmpty(gun.ImageUrl))
-                {
-                    ImageLibrary.Call("AddImage", gun.ImageUrl, gun.ImageUrl);
-                }
+                PrintError("[KillaDome] Configuration not initialized. Cannot load images.");
+                return;
             }
             
-            // Load skin images
-            foreach (var skin in _gunConfig.Skins)
-            {
-                if (!string.IsNullOrEmpty(skin.ImageUrl))
-                {
-                    ImageLibrary.Call("AddImage", skin.ImageUrl, skin.ImageUrl);
-                }
-            }
+            int loadedCount = 0;
             
-            // Load armor images
-            foreach (var armor in _outfitConfig.Armors)
+            try
             {
-                if (!string.IsNullOrEmpty(armor.ImageUrl))
+                // Load gun images
+                if (_gunConfig.Guns != null)
                 {
-                    ImageLibrary.Call("AddImage", armor.ImageUrl, armor.ImageUrl);
+                    foreach (var gun in _gunConfig.Guns.Values)
+                    {
+                        if (!string.IsNullOrEmpty(gun.ImageUrl))
+                        {
+                            ImageLibrary.Call("AddImage", gun.ImageUrl, gun.ImageUrl);
+                            loadedCount++;
+                        }
+                    }
                 }
+                
+                // Load skin images
+                if (_gunConfig.Skins != null)
+                {
+                    foreach (var skin in _gunConfig.Skins)
+                    {
+                        if (!string.IsNullOrEmpty(skin.ImageUrl))
+                        {
+                            ImageLibrary.Call("AddImage", skin.ImageUrl, skin.ImageUrl);
+                            loadedCount++;
+                        }
+                    }
+                }
+                
+                // Load armor images
+                if (_outfitConfig.Armors != null)
+                {
+                    foreach (var armor in _outfitConfig.Armors)
+                    {
+                        if (!string.IsNullOrEmpty(armor.ImageUrl))
+                        {
+                            ImageLibrary.Call("AddImage", armor.ImageUrl, armor.ImageUrl);
+                            loadedCount++;
+                        }
+                    }
+                }
+                
+                Puts($"[KillaDome] Successfully loaded {loadedCount} images into ImageLibrary");
             }
-            
-            Puts($"Loaded {_gunConfig.Guns.Count} gun images, {_gunConfig.Skins.Count} skin images, and {_outfitConfig.Armors.Count} armor images into ImageLibrary");
+            catch (Exception ex)
+            {
+                PrintError($"[KillaDome] Error loading images: {ex.Message}");
+            }
         }
         
         private void Unload()
         {
-            // Clean up all UI - delegate to KillaUI plugin
-            if (KillaUI != null && KillaUI.IsLoaded)
+            try
             {
-                try
+                // Clean up all UI - delegate to KillaUI plugins
+                if (KillaUIv2 != null && KillaUIv2.IsLoaded)
                 {
-                    foreach (var player in BasePlayer.activePlayerList)
+                    try
                     {
-                        KillaUI.Call("DestroyUI", player);
+                        foreach (var player in BasePlayer.activePlayerList)
+                        {
+                            if (player != null && player.IsConnected)
+                            {
+                                KillaUIv2.Call("DestroyUI", player);
+                            }
+                        }
+                        LogDebug("Cleaned up KillaUIv2 UIs");
+                    }
+                    catch (Exception ex)
+                    {
+                        PrintWarning($"Error cleaning up KillaUIv2: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
+                else if (KillaUI != null && KillaUI.IsLoaded)
                 {
-                    PrintWarning($"Error cleaning up UI: {ex.Message}");
+                    try
+                    {
+                        foreach (var player in BasePlayer.activePlayerList)
+                        {
+                            if (player != null && player.IsConnected)
+                            {
+                                KillaUI.Call("DestroyUI", player);
+                            }
+                        }
+                        LogDebug("Cleaned up KillaUI v1 UIs");
+                    }
+                    catch (Exception ex)
+                    {
+                        PrintWarning($"Error cleaning up KillaUI: {ex.Message}");
+                    }
                 }
+                
+                // Save all player data
+                if (_saveManager != null && _activeSessions != null)
+                {
+                    int saved = 0;
+                    foreach (var session in _activeSessions.Values)
+                    {
+                        if (session?.Profile != null)
+                        {
+                            _saveManager.SavePlayerProfile(session.Profile);
+                            saved++;
+                        }
+                    }
+                    LogDebug($"Saved {saved} player profiles on unload");
+                }
+                
+                _activeSessions?.Clear();
+                
+                Puts("[KillaDome] Plugin unloaded and cleaned up successfully");
             }
-            
-            // Save all player data
-            foreach (var session in _activeSessions.Values)
+            catch (Exception ex)
             {
-                _saveManager?.SavePlayerProfile(session.Profile);
+                PrintError($"Error during unload: {ex.Message}\n{ex.StackTrace}");
             }
-            
-            _activeSessions.Clear();
-            
-            LogDebug("KillaDome unloaded and cleaned up");
         }
         
         private void OnPlayerConnected(BasePlayer player)
         {
-            if (player == null || _saveManager == null) return;
+            if (player == null || _saveManager == null)
+            {
+                PrintWarning("[KillaDome] OnPlayerConnected called with null player or uninitialized SaveManager");
+                return;
+            }
             
             NextTick(() =>
             {
-                if (player == null || !player.IsConnected) return;
-                
-                var profile = _saveManager.LoadPlayerProfile(player.userID);
-                var session = new PlayerSession(player, profile);
-                _activeSessions[player.userID] = session;
-                
-                // Teleport to lobby
-                TeleportToLobby(player);
-                
-                // Show lobby UI via KillaUI plugin
-                timer.Once(1f, () =>
+                if (player == null || !player.IsConnected)
                 {
-                    if (player != null && player.IsConnected && KillaUI != null && KillaUI.IsLoaded)
-                    {
-                        try
-                        {
-                            KillaUI.Call("ShowLobbyUI", player);
-                        }
-                        catch (Exception ex)
-                        {
-                            PrintError($"Error showing lobby UI on connect: {ex}");
-                        }
-                    }
-                });
+                    LogDebug("Player disconnected before session could be created");
+                    return;
+                }
                 
-                LogDebug($"Player {player.displayName} ({player.userID}) connected");
+                try
+                {
+                    var profile = _saveManager.LoadPlayerProfile(player.userID);
+                    var session = new PlayerSession(player, profile);
+                    _activeSessions[player.userID] = session;
+                    
+                    // Teleport to lobby
+                    TeleportToLobby(player);
+                    
+                    // Show lobby UI via KillaUI plugin with delay
+                    timer.Once(1f, () =>
+                    {
+                        if (player == null || !player.IsConnected)
+                        {
+                            LogDebug("Player disconnected before UI could be shown");
+                            return;
+                        }
+                        
+                        // Try KillaUIv2 first (new UI)
+                        if (KillaUIv2 != null && KillaUIv2.IsLoaded)
+                        {
+                            try
+                            {
+                                KillaUIv2.Call("ShowLobbyUI", player);
+                                LogDebug($"Showed KillaUIv2 for {player.displayName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                PrintError($"Error showing KillaUIv2 on connect: {ex.Message}");
+                            }
+                        }
+                        // Fallback to KillaUI v1 if available
+                        else if (KillaUI != null && KillaUI.IsLoaded)
+                        {
+                            try
+                            {
+                                KillaUI.Call("ShowLobbyUI", player);
+                                LogDebug($"Showed KillaUI v1 for {player.displayName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                PrintError($"Error showing KillaUI on connect: {ex.Message}");
+                            }
+                        }
+                        else
+                        {
+                            player.ChatMessage("Welcome to KillaDome! Use /kd open to access the lobby.");
+                        }
+                    });
+                    
+                    LogDebug($"Player {player.displayName} ({player.userID}) connected and session created");
+                }
+                catch (Exception ex)
+                {
+                    PrintError($"Error in OnPlayerConnected for {player.displayName}: {ex.Message}\n{ex.StackTrace}");
+                }
             });
         }
         
         private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
-            if (player == null) return;
-            
-            // Destroy UI via KillaUI plugin
-            if (KillaUI != null && KillaUI.IsLoaded)
+            if (player == null)
             {
-                KillaUI.Call("DestroyUI", player);
+                PrintWarning("[KillaDome] OnPlayerDisconnected called with null player");
+                return;
             }
             
-            if (_activeSessions.TryGetValue(player.userID, out var session))
+            try
             {
-                _saveManager?.SavePlayerProfile(session.Profile);
-                _activeSessions.Remove(player.userID);
+                // Destroy UI via KillaUI plugins
+                if (KillaUIv2 != null && KillaUIv2.IsLoaded)
+                {
+                    try
+                    {
+                        KillaUIv2.Call("DestroyUI", player);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogDebug($"Error destroying KillaUIv2 for {player.displayName}: {ex.Message}");
+                    }
+                }
+                else if (KillaUI != null && KillaUI.IsLoaded)
+                {
+                    try
+                    {
+                        KillaUI.Call("DestroyUI", player);
+                    }
+                    catch (Exception ex)
+                    {
+                        LogDebug($"Error destroying KillaUI for {player.displayName}: {ex.Message}");
+                    }
+                }
+                
+                // Save and remove session
+                if (_activeSessions != null && _activeSessions.TryGetValue(player.userID, out var session))
+                {
+                    if (_saveManager != null && session?.Profile != null)
+                    {
+                        _saveManager.SavePlayerProfile(session.Profile);
+                    }
+                    _activeSessions.Remove(player.userID);
+                }
+                
+                LogDebug($"Player {player.displayName} disconnected: {reason}");
             }
-            
-            LogDebug($"Player {player.displayName} disconnected: {reason}");
+            catch (Exception ex)
+            {
+                PrintError($"Error in OnPlayerDisconnected for {player.displayName}: {ex.Message}");
+            }
         }
         
         private void OnEntityDeath(BasePlayer victim, HitInfo info)
@@ -751,100 +928,121 @@ namespace Oxide.Plugins
         
         private void GiveWeapon(BasePlayer player, string weaponName, Dictionary<string, string> attachments, Dictionary<string, string> skins)
         {
-            if (string.IsNullOrEmpty(weaponName)) return;
-            
-            // Get weapon info from centralized config
-            string itemName = "rifle.ak"; // Default fallback
-            string normalizedWeaponName = weaponName?.ToLower() ?? "ak47";
-            if (_gunConfig?.Guns != null && _gunConfig.Guns.TryGetValue(normalizedWeaponName, out var gunDef))
+            if (player == null || string.IsNullOrEmpty(weaponName))
             {
-                itemName = gunDef.RustItemShortname;
-            }
-            
-            var item = ItemManager.CreateByName(itemName, 1);
-            if (item == null)
-            {
-                LogDebug($"Failed to create weapon: {itemName}");
+                LogDebug($"GiveWeapon called with invalid parameters: player={(player == null ? "null" : player.displayName)}, weapon={weaponName}");
                 return;
             }
             
-            // Apply skin if exists
-            if (skins != null && skins.TryGetValue(weaponName, out string skinId))
+            try
             {
-                if (ulong.TryParse(skinId, out ulong skin))
+                // Get weapon info from centralized config
+                string itemName = "rifle.ak"; // Default fallback
+                string normalizedWeaponName = weaponName?.ToLower() ?? "ak47";
+                
+                if (_gunConfig?.Guns != null && _gunConfig.Guns.TryGetValue(normalizedWeaponName, out var gunDef))
                 {
-                    item.skin = skin;
-                    item.MarkDirty(); // Mark for network update
+                    itemName = gunDef.RustItemShortname;
                 }
-            }
-            
-            // Apply attachments if exists
-            if (attachments != null && attachments.Count > 0)
-            {
-                var heldEntity = item.GetHeldEntity() as BaseProjectile;
-                if (heldEntity != null && item.contents != null)
+                else
                 {
-                    foreach (var attachmentEntry in attachments)
+                    PrintWarning($"[KillaDome] Unknown weapon: {weaponName}, using default AK-47");
+                }
+                
+                var item = ItemManager.CreateByName(itemName, 1);
+                if (item == null)
+                {
+                    PrintError($"[KillaDome] Failed to create weapon item: {itemName}");
+                    return;
+                }
+                
+                // Apply skin if exists
+                if (skins != null && skins.TryGetValue(weaponName, out string skinId))
+                {
+                    if (ulong.TryParse(skinId, out ulong skin))
                     {
-                        string attachmentId = attachmentEntry.Value;
-                        if (!string.IsNullOrEmpty(attachmentId))
+                        item.skin = skin;
+                        item.MarkDirty();
+                    }
+                }
+                
+                // Apply attachments if exists
+                if (attachments != null && attachments.Count > 0)
+                {
+                    var heldEntity = item.GetHeldEntity() as BaseProjectile;
+                    if (heldEntity != null && item.contents != null)
+                    {
+                        foreach (var attachmentEntry in attachments)
                         {
-                            var attachmentItem = ItemManager.CreateByName(attachmentId, 1);
-                            if (attachmentItem != null)
+                            string attachmentId = attachmentEntry.Value;
+                            if (!string.IsNullOrEmpty(attachmentId))
                             {
-                                // Add attachment to weapon's content container
-                                if (!attachmentItem.MoveToContainer(item.contents))
+                                var attachmentItem = ItemManager.CreateByName(attachmentId, 1);
+                                if (attachmentItem != null)
                                 {
-                                    attachmentItem.Remove(); // Clean up if can't add
+                                    if (!attachmentItem.MoveToContainer(item.contents))
+                                    {
+                                        attachmentItem.Remove();
+                                        LogDebug($"Failed to attach {attachmentId} to {itemName}");
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-            
-            // Give item to player
-            if (!player.inventory.GiveItem(item))
-            {
-                LogDebug($"Failed to give weapon {itemName} to {player.displayName} - inventory full?");
-                item.Remove(); // Clean up item if can't give
-                return;
-            }
-            
-            // If item was given to belt, ensure visual update
-            var heldItem = item.GetHeldEntity();
-            if (heldItem != null)
-            {
-                heldItem.skinID = item.skin;
-                heldItem.SendNetworkUpdate();
-            }
-            
-            // Give ammo based on weapon type
-            string ammoType = "ammo.rifle"; // Default
-            
-            if (_gunConfig.Guns.ContainsKey(weaponName))
-            {
-                var gunShortname = _gunConfig.Guns[weaponName].RustItemShortname;
                 
-                // Determine ammo type based on weapon
-                if (gunShortname.Contains("pistol") || gunShortname == "pistol.python" || gunShortname == "pistol.revolver")
+                // Give item to player
+                if (!player.inventory.GiveItem(item))
                 {
-                    ammoType = "ammo.pistol";
+                    PrintWarning($"[KillaDome] Failed to give weapon {itemName} to {player.displayName} - inventory full?");
+                    item.Remove();
+                    return;
                 }
-                else if (gunShortname.Contains("shotgun"))
+                
+                // Update visuals if held
+                var heldItem = item.GetHeldEntity();
+                if (heldItem != null)
                 {
-                    ammoType = "ammo.shotgun";
+                    heldItem.skinID = item.skin;
+                    heldItem.SendNetworkUpdate();
                 }
-                else if (gunShortname.Contains("rifle") || gunShortname.Contains("smg") || gunShortname.Contains("lmg"))
+                
+                // Give ammo based on weapon type
+                string ammoType = "ammo.rifle"; // Default
+                
+                if (_gunConfig?.Guns != null && _gunConfig.Guns.ContainsKey(normalizedWeaponName))
                 {
-                    ammoType = "ammo.rifle";
+                    var gunShortname = _gunConfig.Guns[normalizedWeaponName].RustItemShortname;
+                    
+                    // Determine ammo type based on weapon
+                    if (gunShortname.Contains("pistol") || gunShortname == "pistol.python" || gunShortname == "pistol.revolver")
+                    {
+                        ammoType = "ammo.pistol";
+                    }
+                    else if (gunShortname.Contains("shotgun"))
+                    {
+                        ammoType = "ammo.shotgun";
+                    }
+                    else if (gunShortname.Contains("rifle") || gunShortname.Contains("smg") || gunShortname.Contains("lmg"))
+                    {
+                        ammoType = "ammo.rifle";
+                    }
                 }
+                
+                var ammo = ItemManager.CreateByName(ammoType, 250);
+                if (ammo != null)
+                {
+                    if (!player.inventory.GiveItem(ammo))
+                    {
+                        ammo.Remove();
+                    }
+                }
+                
+                LogDebug($"Gave weapon {itemName} to {player.displayName}");
             }
-            
-            var ammo = ItemManager.CreateByName(ammoType, 250);
-            if (ammo != null)
+            catch (Exception ex)
             {
-                player.inventory.GiveItem(ammo);
+                PrintError($"[KillaDome] Error giving weapon to {player.displayName}: {ex.Message}\n{ex.StackTrace}");
             }
         }
         

@@ -215,13 +215,25 @@ namespace Oxide.Plugins
         
         private void OnServerInitialized()
         {
-            if (KillaDome == null || !KillaDome.IsLoaded)
+            // Check for required dependencies with retry logic
+            timer.Once(2f, () =>
             {
-                PrintWarning("[KillaUIv2] KillaDome plugin not found! UI will not function.");
-                return;
-            }
-            
-            Puts("[KillaUIv2] [DEBUG] KillaUIv2 connected to KillaDome");
+                if (KillaDome == null || !KillaDome.IsLoaded)
+                {
+                    PrintWarning("[KillaUIv2] KillaDome plugin not found! UI will not function properly.");
+                    PrintWarning("[KillaUIv2] Please ensure KillaDome plugin is loaded.");
+                }
+                else
+                {
+                    Puts("[KillaUIv2] Successfully connected to KillaDome plugin");
+                }
+                
+                if (ImageLibrary == null || !ImageLibrary.IsLoaded)
+                {
+                    PrintWarning("[KillaUIv2] ImageLibrary plugin not found. Images will not display.");
+                    PrintWarning("[KillaUIv2] Install ImageLibrary for full functionality.");
+                }
+            });
         }
         
         private void Unload()
@@ -242,9 +254,21 @@ namespace Oxide.Plugins
         [HookMethod("ShowLobbyUI")]
         public void ShowLobbyUI(BasePlayer player)
         {
-            if (player == null || !player.IsConnected) return;
+            if (player == null || !player.IsConnected)
+            {
+                PrintWarning("[KillaUIv2] ShowLobbyUI called with null or disconnected player");
+                return;
+            }
             
             Puts($"[KillaUIv2] ShowLobbyUI called for {player.displayName}");
+            
+            // Verify KillaDome is available
+            if (KillaDome == null || !KillaDome.IsLoaded)
+            {
+                PrintError("[KillaUIv2] Cannot show UI - KillaDome plugin not available");
+                player.ChatMessage("UI system unavailable. Please contact an administrator.");
+                return;
+            }
             
             // Initialize player state if needed
             if (!_playerStates.ContainsKey(player.userID))
@@ -257,12 +281,15 @@ namespace Oxide.Plugins
             {
                 try
                 {
-                    KillaDome?.Call("SetBloodTokens", player.userID, 100000);
-                    Puts($"[KillaUIv2] Granted 100k blood tokens to admin: {player.displayName}");
+                    var result = KillaDome?.Call("SetBloodTokens", player.userID, 100000);
+                    if (result != null)
+                    {
+                        Puts($"[KillaUIv2] Granted 100k blood tokens to admin: {player.displayName}");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Puts($"[KillaUIv2] Could not grant admin tokens (KillaDome may not support SetBloodTokens): {ex.Message}");
+                    Puts($"[KillaUIv2] Could not grant admin tokens: {ex.Message}");
                 }
             }
             
@@ -274,12 +301,25 @@ namespace Oxide.Plugins
         [HookMethod("DestroyUI")]
         public void DestroyUI(BasePlayer player)
         {
-            if (player == null) return;
+            if (player == null)
+            {
+                PrintWarning("[KillaUIv2] DestroyUI called with null player");
+                return;
+            }
             
-            CuiHelper.DestroyUi(player, UI_MAIN);
-            CuiHelper.DestroyUi(player, UI_PANEL);
-            
-            _playerStates.Remove(player.userID);
+            try
+            {
+                CuiHelper.DestroyUi(player, UI_MAIN);
+                CuiHelper.DestroyUi(player, UI_PANEL);
+                
+                _playerStates.Remove(player.userID);
+                
+                LogDebug($"UI destroyed for {player.displayName}");
+            }
+            catch (Exception ex)
+            {
+                PrintError($"[KillaUIv2] Error destroying UI for {player.displayName}: {ex.Message}");
+            }
         }
         
         #endregion
@@ -288,33 +328,51 @@ namespace Oxide.Plugins
         
         private void ShowMainUI(BasePlayer player, string tab)
         {
-            if (player == null || !player.IsConnected) return;
-            
-            // Destroy existing UI
-            CuiHelper.DestroyUi(player, UI_MAIN);
-            
-            var container = new CuiElementContainer();
-            
-            // Main background panel
-            container.Add(new CuiPanel
+            if (player == null || !player.IsConnected)
             {
-                Image = { Color = COLOR_PRIMARY },
-                RectTransform = { AnchorMin = "0 0", AnchorMax = "1 1" },
-                CursorEnabled = true
-            }, "Overlay", UI_MAIN);
+                PrintWarning("[KillaUIv2] ShowMainUI called with null or disconnected player");
+                return;
+            }
             
-            // Header with title and tab buttons
-            AddHeader(container, UI_MAIN, player, tab);
+            // Validate tab parameter
+            if (string.IsNullOrEmpty(tab))
+            {
+                tab = "play";
+            }
             
-            // Content area based on selected tab
-            AddTabContent(container, UI_MAIN, player, tab);
-            
-            // Close button
-            AddCloseButton(container, UI_MAIN, player);
-            
-            CuiHelper.AddUi(player, container);
-            
-            Puts($"[KillaUIv2] UI rendered for {player.displayName}, tab: {tab}");
+            try
+            {
+                // Destroy existing UI
+                CuiHelper.DestroyUi(player, UI_MAIN);
+                
+                var container = new CuiElementContainer();
+                
+                // Main background panel
+                container.Add(new CuiPanel
+                {
+                    Image = { Color = COLOR_PRIMARY },
+                    RectTransform = { AnchorMin = "0 0", AnchorMax = "1 1" },
+                    CursorEnabled = true
+                }, "Overlay", UI_MAIN);
+                
+                // Header with title and tab buttons
+                AddHeader(container, UI_MAIN, player, tab);
+                
+                // Content area based on selected tab
+                AddTabContent(container, UI_MAIN, player, tab);
+                
+                // Close button
+                AddCloseButton(container, UI_MAIN, player);
+                
+                CuiHelper.AddUi(player, container);
+                
+                Puts($"[KillaUIv2] UI rendered for {player.displayName}, tab: {tab}");
+            }
+            catch (Exception ex)
+            {
+                PrintError($"[KillaUIv2] Error rendering UI for {player.displayName}: {ex.Message}\n{ex.StackTrace}");
+                player.ChatMessage("Error displaying UI. Please contact an administrator.");
+            }
         }
         
         private void AddHeader(CuiElementContainer container, string parent, BasePlayer player, string currentTab)
@@ -423,8 +481,20 @@ namespace Oxide.Plugins
         
         private void RenderPlayTab(CuiElementContainer container, string parent, BasePlayer player)
         {
-            // Get session data from KillaDome
-            var sessionData = KillaDome?.Call("GetSessionData", player.userID) as Dictionary<string, object>;
+            // Get session data from KillaDome with null safety
+            Dictionary<string, object> sessionData = null;
+            try
+            {
+                var result = KillaDome?.Call("GetSessionData", player.userID);
+                if (result != null)
+                {
+                    sessionData = result as Dictionary<string, object>;
+                }
+            }
+            catch (Exception ex)
+            {
+                PrintError($"[KillaUIv2] Error getting session data: {ex.Message}");
+            }
             
             int tokens = 0;
             int kills = 0;
@@ -432,10 +502,17 @@ namespace Oxide.Plugins
             
             if (sessionData != null)
             {
-                tokens = Convert.ToInt32(sessionData.ContainsKey("tokens") ? sessionData["tokens"] : 0);
-                kills = Convert.ToInt32(sessionData.ContainsKey("totalKills") ? sessionData["totalKills"] : 0);
-                int deaths = Convert.ToInt32(sessionData.ContainsKey("totalDeaths") ? sessionData["totalDeaths"] : 0);
-                kd = deaths > 0 ? (float)kills / deaths : kills;
+                try
+                {
+                    tokens = sessionData.ContainsKey("tokens") ? Convert.ToInt32(sessionData["tokens"]) : 0;
+                    kills = sessionData.ContainsKey("totalKills") ? Convert.ToInt32(sessionData["totalKills"]) : 0;
+                    int deaths = sessionData.ContainsKey("totalDeaths") ? Convert.ToInt32(sessionData["totalDeaths"]) : 0;
+                    kd = deaths > 0 ? (float)kills / deaths : kills;
+                }
+                catch (Exception ex)
+                {
+                    PrintError($"[KillaUIv2] Error parsing session data: {ex.Message}");
+                }
             }
             
             // Center join button
@@ -1493,18 +1570,27 @@ namespace Oxide.Plugins
             if (!_playerStates.ContainsKey(playerId))
             {
                 _playerStates[playerId] = new PlayerUIState();
+                LogDebug($"Created new UI state for player {playerId}");
             }
             return _playerStates[playerId];
         }
 
         private string GetPlayerArmorType(ulong playerId, string slot)
         {
+            if (string.IsNullOrEmpty(slot))
+            {
+                PrintWarning($"[KillaUIv2] GetPlayerArmorType called with null/empty slot for player {playerId}");
+                return "metal.facemask"; // Safe default
+            }
+            
             var state = GetPlayerState(playerId);
             if (state.ArmorSlotTypes.ContainsKey(slot))
+            {
                 return state.ArmorSlotTypes[slot];
+            }
             
             // Return defaults based on slot
-            switch (slot)
+            switch (slot.ToLower())
             {
                 case "head": return "metal.facemask";
                 case "chest_armor": return "metal.plate.torso";
@@ -1512,7 +1598,9 @@ namespace Oxide.Plugins
                 case "pants": return "pants";
                 case "leg_armor": return "roadsign.kilt";
                 case "feet": return "shoes.boots";
-                default: return "burlap.shirt"; // Generic fallback
+                default:
+                    PrintWarning($"[KillaUIv2] Unknown armor slot: {slot}");
+                    return "burlap.shirt"; // Generic fallback
             }
         }
 
@@ -2641,10 +2729,21 @@ namespace Oxide.Plugins
         [ConsoleCommand("killaui.tab")]
         private void CmdChangeTab(ConsoleSystem.Arg arg)
         {
-            var player = arg.Player();
-            if (player == null) return;
+            var player = arg?.Player();
+            if (player == null || !player.IsConnected)
+            {
+                return;
+            }
             
             string tab = arg.GetString(0, "play");
+            
+            // Validate tab name
+            string[] validTabs = { "play", "loadouts", "store", "stats", "settings" };
+            if (!validTabs.Contains(tab.ToLower()))
+            {
+                PrintWarning($"[KillaUIv2] Invalid tab requested: {tab}");
+                tab = "play";
+            }
             
             // Update state
             if (!_playerStates.ContainsKey(player.userID))
@@ -3012,18 +3111,19 @@ namespace Oxide.Plugins
             // This is just the UI trigger
         }
         
-        #endregion
-        
         #region Helper Methods
         
         private bool IsAdmin(BasePlayer player)
         {
+            if (player == null) return false;
+            
             // Check if player has admin permission or is server admin
             return player.IsAdmin || permission.UserHasPermission(player.UserIDString, "killadome.admin");
         }
         
         private void LogDebug(string message)
         {
+            // Always log debug messages with DEBUG tag for clarity
             Puts($"[DEBUG] {message}");
         }
         

@@ -1685,15 +1685,18 @@ namespace Oxide.Plugins
                 return;
             }
             
-            string currentArmorShortname = slot.ToLower() switch
-            {
-                "head" => loadout.ArmorHead,
-                "chest" => loadout.ArmorChest,
-                "legs" => loadout.ArmorLegs,
-                "hands" => loadout.ArmorHands,
-                "feet" => loadout.ArmorFeet,
-                _ => null
-            };
+            string currentArmorShortname = null;
+            
+            if (string.Equals(slot, "head", StringComparison.OrdinalIgnoreCase))
+                currentArmorShortname = loadout.ArmorHead;
+            else if (string.Equals(slot, "chest", StringComparison.OrdinalIgnoreCase))
+                currentArmorShortname = loadout.ArmorChest;
+            else if (string.Equals(slot, "legs", StringComparison.OrdinalIgnoreCase))
+                currentArmorShortname = loadout.ArmorLegs;
+            else if (string.Equals(slot, "hands", StringComparison.OrdinalIgnoreCase))
+                currentArmorShortname = loadout.ArmorHands;
+            else if (string.Equals(slot, "feet", StringComparison.OrdinalIgnoreCase))
+                currentArmorShortname = loadout.ArmorFeet;
             
             int currentIndex = Array.FindIndex(ownedArmor, a => a.ItemShortname == currentArmorShortname);
             if (currentIndex == -1) currentIndex = 0;
@@ -1701,26 +1704,21 @@ namespace Oxide.Plugins
             int newIndex = (currentIndex + direction + ownedArmor.Length) % ownedArmor.Length;
             string newArmor = ownedArmor[newIndex].ItemShortname;
             
-            switch (slot.ToLower())
+            // Update the appropriate slot (case-insensitive)
+            if (string.Equals(slot, "head", StringComparison.OrdinalIgnoreCase))
+                loadout.ArmorHead = newArmor;
+            else if (string.Equals(slot, "chest", StringComparison.OrdinalIgnoreCase))
+                loadout.ArmorChest = newArmor;
+            else if (string.Equals(slot, "legs", StringComparison.OrdinalIgnoreCase))
+                loadout.ArmorLegs = newArmor;
+            else if (string.Equals(slot, "hands", StringComparison.OrdinalIgnoreCase))
+                loadout.ArmorHands = newArmor;
+            else if (string.Equals(slot, "feet", StringComparison.OrdinalIgnoreCase))
+                loadout.ArmorFeet = newArmor;
+            else
             {
-                case "head":
-                    loadout.ArmorHead = newArmor;
-                    break;
-                case "chest":
-                    loadout.ArmorChest = newArmor;
-                    break;
-                case "legs":
-                    loadout.ArmorLegs = newArmor;
-                    break;
-                case "hands":
-                    loadout.ArmorHands = newArmor;
-                    break;
-                case "feet":
-                    loadout.ArmorFeet = newArmor;
-                    break;
-                default:
-                    PrintWarning($"[KillaDome] Unknown armor slot: {slot}");
-                    return;
+                PrintWarning($"[KillaDome] Unknown armor slot: {slot}");
+                return;
             }
             
             _saveManager?.SavePlayerProfile(session.Profile);

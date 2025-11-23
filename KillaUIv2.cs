@@ -1581,7 +1581,7 @@ namespace Oxide.Plugins
                         string name = armorId.Replace(".", " ").Replace("_", " ");
                         if (name.Length > 0)
                         {
-                            return char.ToUpper(name[0]) + name.Substring(1);
+                            return $"{char.ToUpper(name[0])}{name.Substring(1)}";
                         }
                         return armorId; // Return as-is if empty after processing
                     }
@@ -1616,19 +1616,22 @@ namespace Oxide.Plugins
                 return state.ArmorSlotTypes[slot];
             }
             
-            // Return defaults based on slot
-            switch (slot.ToLower())
-            {
-                case "head": return "metal.facemask";
-                case "chest_armor": return "metal.plate.torso";
-                case "chest_clothing": return "roadsign.jacket";
-                case "pants": return "pants";
-                case "leg_armor": return "roadsign.kilt";
-                case "feet": return "shoes.boots";
-                default:
-                    PrintWarning($"[KillaUIv2] Unknown armor slot: {slot}");
-                    return "burlap.shirt"; // Generic fallback
-            }
+            // Return defaults based on slot (case-insensitive comparison)
+            if (string.Equals(slot, "head", StringComparison.OrdinalIgnoreCase))
+                return "metal.facemask";
+            if (string.Equals(slot, "chest_armor", StringComparison.OrdinalIgnoreCase))
+                return "metal.plate.torso";
+            if (string.Equals(slot, "chest_clothing", StringComparison.OrdinalIgnoreCase))
+                return "roadsign.jacket";
+            if (string.Equals(slot, "pants", StringComparison.OrdinalIgnoreCase))
+                return "pants";
+            if (string.Equals(slot, "leg_armor", StringComparison.OrdinalIgnoreCase))
+                return "roadsign.kilt";
+            if (string.Equals(slot, "feet", StringComparison.OrdinalIgnoreCase))
+                return "shoes.boots";
+            
+            PrintWarning($"[KillaUIv2] Unknown armor slot: {slot}");
+            return "burlap.shirt"; // Generic fallback
         }
 
         private void SetPlayerArmorType(ulong playerId, string slot, string armorType)
@@ -2764,8 +2767,8 @@ namespace Oxide.Plugins
             
             string tab = arg.GetString(0, DEFAULT_TAB);
             
-            // Validate tab name
-            if (!VALID_TABS.Contains(tab.ToLower()))
+            // Validate tab name (case-insensitive)
+            if (!VALID_TABS.Any(t => string.Equals(t, tab, StringComparison.OrdinalIgnoreCase)))
             {
                 PrintWarning($"[KillaUIv2] Invalid tab requested: {tab}");
                 tab = DEFAULT_TAB;

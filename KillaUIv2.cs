@@ -515,7 +515,7 @@ namespace Oxide.Plugins
             {
                 try
                 {
-                    tokens = sessionData.ContainsKey("tokens") ? Convert.ToInt32(sessionData["tokens"]) : 0;
+                    tokens = sessionData.ContainsKey("Tokens") ? Convert.ToInt32(sessionData["Tokens"]) : 0;
                     kills = sessionData.ContainsKey("totalKills") ? Convert.ToInt32(sessionData["totalKills"]) : 0;
                     int deaths = sessionData.ContainsKey("totalDeaths") ? Convert.ToInt32(sessionData["totalDeaths"]) : 0;
                     kd = deaths > 0 ? (float)kills / deaths : kills;

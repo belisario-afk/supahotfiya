@@ -1270,6 +1270,38 @@ namespace Oxide.Plugins
             SendReply(arg, $"Reset progress for player {targetId}");
         }
         
+        [ConsoleCommand("killadome.joinqueue")]
+        private void CmdJoinQueue(ConsoleSystem.Arg arg)
+        {
+            var player = arg?.Player();
+            if (player == null || !player.IsConnected)
+            {
+                return;
+            }
+            
+            try
+            {
+                if (_domeManager == null)
+                {
+                    player.ChatMessage("Match system unavailable. Please contact an administrator.");
+                    return;
+                }
+                
+                _domeManager.AddToQueue(player.userID);
+                player.ChatMessage("✓ You have been added to the queue!");
+                
+                // Optionally start match if enough players
+                // This would be handled by the DomeManager's match logic
+                
+                Puts($"[KillaDome] Player {player.displayName} joined queue");
+            }
+            catch (Exception ex)
+            {
+                PrintError($"[KillaDome] Error adding player to queue: {ex.Message}");
+                player.ChatMessage("Failed to join queue. Please try again.");
+            }
+        }
+        
         #endregion
         
         #region Chat Commands

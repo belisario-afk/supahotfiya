@@ -37,17 +37,6 @@ namespace Oxide.Plugins
         // UI Constants
         private const string UI_MAIN = "KillaUI_Main";
         private const string UI_PANEL = "KillaUI_Panel";
-        private const string DEFAULT_TAB = "play";
-        
-        // Valid tab names for validation
-        private static readonly string[] VALID_TABS = { "play", "loadouts", "store", "stats", "settings" };
-        
-        // Effect prefab paths
-        private const string EFFECT_BUY = "assets/prefabs/deployable/vendingmachine/effects/buy.prefab";
-        private const string EFFECT_DENY = "assets/prefabs/deployable/vendingmachine/effects/deny.prefab";
-        
-        // Timing constants
-        private const float DEPENDENCY_CHECK_DELAY = 2f; // Delay before checking plugin dependencies
         
         // Screen dimensions (1920x1080 reference)
         private const float SCREEN_WIDTH = 1920f;
@@ -226,25 +215,13 @@ namespace Oxide.Plugins
         
         private void OnServerInitialized()
         {
-            // Check for required dependencies with retry logic
-            timer.Once(DEPENDENCY_CHECK_DELAY, () =>
+            if (KillaDome == null || !KillaDome.IsLoaded)
             {
-                if (KillaDome == null || !KillaDome.IsLoaded)
-                {
-                    PrintWarning("[KillaUIv2] KillaDome plugin not found! UI will not function properly.");
-                    PrintWarning("[KillaUIv2] Please ensure KillaDome plugin is loaded.");
-                }
-                else
-                {
-                    Puts("[KillaUIv2] Successfully connected to KillaDome plugin");
-                }
-                
-                if (ImageLibrary == null || !ImageLibrary.IsLoaded)
-                {
-                    PrintWarning("[KillaUIv2] ImageLibrary plugin not found. Images will not display.");
-                    PrintWarning("[KillaUIv2] Install ImageLibrary for full functionality.");
-                }
-            });
+                PrintWarning("[KillaUIv2] KillaDome plugin not found! UI will not function.");
+                return;
+            }
+            
+            Puts("[KillaUIv2] [DEBUG] KillaUIv2 connected to KillaDome");
         }
         
         private void Unload()
@@ -265,21 +242,9 @@ namespace Oxide.Plugins
         [HookMethod("ShowLobbyUI")]
         public void ShowLobbyUI(BasePlayer player)
         {
-            if (player == null || !player.IsConnected)
-            {
-                PrintWarning("[KillaUIv2] ShowLobbyUI called with null or disconnected player");
-                return;
-            }
+            if (player == null || !player.IsConnected) return;
             
             Puts($"[KillaUIv2] ShowLobbyUI called for {player.displayName}");
-            
-            // Verify KillaDome is available
-            if (KillaDome == null || !KillaDome.IsLoaded)
-            {
-                PrintError("[KillaUIv2] Cannot show UI - KillaDome plugin not available");
-                player.ChatMessage("UI system unavailable. Please contact an administrator.");
-                return;
-            }
             
             // Initialize player state if needed
             if (!_playerStates.ContainsKey(player.userID))
@@ -292,15 +257,12 @@ namespace Oxide.Plugins
             {
                 try
                 {
-                    var result = KillaDome?.Call("SetBloodTokens", player.userID, 100000);
-                    if (result != null)
-                    {
-                        Puts($"[KillaUIv2] Granted 100k blood tokens to admin: {player.displayName}");
-                    }
+                    KillaDome?.Call("SetBloodTokens", player.userID, 100000);
+                    Puts($"[KillaUIv2] Granted 100k blood tokens to admin: {player.displayName}");
                 }
                 catch (Exception ex)
                 {
-                    Puts($"[KillaUIv2] Could not grant admin tokens: {ex.Message}");
+                    Puts($"[KillaUIv2] Could not grant admin tokens (KillaDome may not support SetBloodTokens): {ex.Message}");
                 }
             }
             
@@ -312,25 +274,12 @@ namespace Oxide.Plugins
         [HookMethod("DestroyUI")]
         public void DestroyUI(BasePlayer player)
         {
-            if (player == null)
-            {
-                PrintWarning("[KillaUIv2] DestroyUI called with null player");
-                return;
-            }
+            if (player == null) return;
             
-            try
-            {
-                CuiHelper.DestroyUi(player, UI_MAIN);
-                CuiHelper.DestroyUi(player, UI_PANEL);
-                
-                _playerStates.Remove(player.userID);
-                
-                LogDebug($"UI destroyed for {player.displayName}");
-            }
-            catch (Exception ex)
-            {
-                PrintError($"[KillaUIv2] Error destroying UI for {player.displayName}: {ex.Message}");
-            }
+            CuiHelper.DestroyUi(player, UI_MAIN);
+            CuiHelper.DestroyUi(player, UI_PANEL);
+            
+            _playerStates.Remove(player.userID);
         }
         
         #endregion
@@ -339,51 +288,33 @@ namespace Oxide.Plugins
         
         private void ShowMainUI(BasePlayer player, string tab)
         {
-            if (player == null || !player.IsConnected)
-            {
-                PrintWarning("[KillaUIv2] ShowMainUI called with null or disconnected player");
-                return;
-            }
+            if (player == null || !player.IsConnected) return;
             
-            // Validate tab parameter
-            if (string.IsNullOrEmpty(tab))
-            {
-                tab = DEFAULT_TAB;
-            }
+            // Destroy existing UI
+            CuiHelper.DestroyUi(player, UI_MAIN);
             
-            try
+            var container = new CuiElementContainer();
+            
+            // Main background panel
+            container.Add(new CuiPanel
             {
-                // Destroy existing UI
-                CuiHelper.DestroyUi(player, UI_MAIN);
-                
-                var container = new CuiElementContainer();
-                
-                // Main background panel
-                container.Add(new CuiPanel
-                {
-                    Image = { Color = COLOR_PRIMARY },
-                    RectTransform = { AnchorMin = "0 0", AnchorMax = "1 1" },
-                    CursorEnabled = true
-                }, "Overlay", UI_MAIN);
-                
-                // Header with title and tab buttons
-                AddHeader(container, UI_MAIN, player, tab);
-                
-                // Content area based on selected tab
-                AddTabContent(container, UI_MAIN, player, tab);
-                
-                // Close button
-                AddCloseButton(container, UI_MAIN, player);
-                
-                CuiHelper.AddUi(player, container);
-                
-                Puts($"[KillaUIv2] UI rendered for {player.displayName}, tab: {tab}");
-            }
-            catch (Exception ex)
-            {
-                PrintError($"[KillaUIv2] Error rendering UI for {player.displayName}: {ex.Message}\n{ex.StackTrace}");
-                player.ChatMessage("Error displaying UI. Please contact an administrator.");
-            }
+                Image = { Color = COLOR_PRIMARY },
+                RectTransform = { AnchorMin = "0 0", AnchorMax = "1 1" },
+                CursorEnabled = true
+            }, "Overlay", UI_MAIN);
+            
+            // Header with title and tab buttons
+            AddHeader(container, UI_MAIN, player, tab);
+            
+            // Content area based on selected tab
+            AddTabContent(container, UI_MAIN, player, tab);
+            
+            // Close button
+            AddCloseButton(container, UI_MAIN, player);
+            
+            CuiHelper.AddUi(player, container);
+            
+            Puts($"[KillaUIv2] UI rendered for {player.displayName}, tab: {tab}");
         }
         
         private void AddHeader(CuiElementContainer container, string parent, BasePlayer player, string currentTab)
@@ -492,20 +423,8 @@ namespace Oxide.Plugins
         
         private void RenderPlayTab(CuiElementContainer container, string parent, BasePlayer player)
         {
-            // Get session data from KillaDome with null safety
-            Dictionary<string, object> sessionData = null;
-            try
-            {
-                var result = KillaDome?.Call("GetSessionData", player.userID);
-                if (result != null)
-                {
-                    sessionData = result as Dictionary<string, object>;
-                }
-            }
-            catch (Exception ex)
-            {
-                PrintError($"[KillaUIv2] Error getting session data: {ex.Message}");
-            }
+            // Get session data from KillaDome
+            var sessionData = KillaDome?.Call("GetSessionData", player.userID) as Dictionary<string, object>;
             
             int tokens = 0;
             int kills = 0;
@@ -513,17 +432,10 @@ namespace Oxide.Plugins
             
             if (sessionData != null)
             {
-                try
-                {
-                    tokens = sessionData.ContainsKey("Tokens") ? Convert.ToInt32(sessionData["Tokens"]) : 0;
-                    kills = sessionData.ContainsKey("TotalKills") ? Convert.ToInt32(sessionData["TotalKills"]) : 0;
-                    int deaths = sessionData.ContainsKey("TotalDeaths") ? Convert.ToInt32(sessionData["TotalDeaths"]) : 0;
-                    kd = deaths > 0 ? (float)kills / deaths : kills;
-                }
-                catch (Exception ex)
-                {
-                    PrintError($"[KillaUIv2] Error parsing session data: {ex.Message}");
-                }
+                tokens = Convert.ToInt32(sessionData.ContainsKey("tokens") ? sessionData["tokens"] : 0);
+                kills = Convert.ToInt32(sessionData.ContainsKey("totalKills") ? sessionData["totalKills"] : 0);
+                int deaths = Convert.ToInt32(sessionData.ContainsKey("totalDeaths") ? sessionData["totalDeaths"] : 0);
+                kd = deaths > 0 ? (float)kills / deaths : kills;
             }
             
             // Center join button
@@ -810,48 +722,57 @@ namespace Oxide.Plugins
                 }
             }, primaryPanel);
             
-            // Primary weapon image - get from KillaDome gun configuration
-            try
+            // Primary weapon image from ImageLibrary
+            var imageLibrary = plugins.Find("ImageLibrary");
+            if (imageLibrary != null)
             {
-                var weaponInfoRaw = KillaDome?.Call("GetWeaponInfo", primaryWeapon);
-                if (weaponInfoRaw != null)
+                try
                 {
-                    var weaponInfo = weaponInfoRaw as Dictionary<string, object>;
-                    if (weaponInfo != null && weaponInfo.ContainsKey("ImageUrl"))
+                    string imageUrl = (string)imageLibrary.Call("GetImage", primaryWeapon, DEFAULT_SKIN_ID);
+                    if (!string.IsNullOrEmpty(imageUrl))
                     {
-                        string imageUrl = weaponInfo["ImageUrl"]?.ToString();
-                        if (!string.IsNullOrEmpty(imageUrl))
+                        container.Add(new CuiElement
                         {
-                            container.Add(new CuiElement
+                            Name = "primary_weapon_image",
+                            Parent = primaryPanel,
+                            Components =
                             {
-                                Name = "primary_weapon_image",
-                                Parent = primaryPanel,
-                                Components =
-                                {
-                                    new CuiRawImageComponent { Url = imageUrl },
-                                    new CuiRectTransformComponent { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                                }
-                            });
-                        }
-                        else
+                                new CuiRawImageComponent { Url = imageUrl },
+                                new CuiRectTransformComponent { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                            }
+                        });
+                    }
+                    else
+                    {
+                        // Fallback if image not found
+                        container.Add(new CuiLabel
                         {
-                            // Fallback if image URL is empty
-                            container.Add(new CuiLabel
-                            {
-                                Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
-                                RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                            }, primaryPanel);
-                        }
+                            Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                            RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                        }, primaryPanel);
                     }
                 }
+                catch
+                {
+                    // Fallback on error
+                    container.Add(new CuiLabel
+                    {
+                        Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                        RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                    }, primaryPanel);
+                }
             }
-            catch (Exception ex)
+            else
             {
-                Puts($"[KillaUIv2] Error loading weapon image: {ex.Message}");
-                // Fallback on error
+                // ImageLibrary not available - show placeholder
                 container.Add(new CuiLabel
                 {
-                    Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                    Text = {
+                        Text = "📷\n[Weapon Image]",
+                        FontSize = 14,
+                        Align = TextAnchor.MiddleCenter,
+                        Color = COLOR_TEXT_DIM
+                    },
                     RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
                 }, primaryPanel);
             }
@@ -916,48 +837,56 @@ namespace Oxide.Plugins
                 }
             }, secondaryPanel);
             
-            // Secondary weapon image - get from KillaDome gun configuration
-            try
+            // Secondary weapon image from ImageLibrary
+            if (imageLibrary != null)
             {
-                var weaponInfoRaw = KillaDome?.Call("GetWeaponInfo", secondaryWeapon);
-                if (weaponInfoRaw != null)
+                try
                 {
-                    var weaponInfo = weaponInfoRaw as Dictionary<string, object>;
-                    if (weaponInfo != null && weaponInfo.ContainsKey("ImageUrl"))
+                    string imageUrl = (string)imageLibrary.Call("GetImage", secondaryWeapon, DEFAULT_SKIN_ID);
+                    if (!string.IsNullOrEmpty(imageUrl))
                     {
-                        string imageUrl = weaponInfo["ImageUrl"]?.ToString();
-                        if (!string.IsNullOrEmpty(imageUrl))
+                        container.Add(new CuiElement
                         {
-                            container.Add(new CuiElement
+                            Name = "secondary_weapon_image",
+                            Parent = secondaryPanel,
+                            Components =
                             {
-                                Name = "secondary_weapon_image",
-                                Parent = secondaryPanel,
-                                Components =
-                                {
-                                    new CuiRawImageComponent { Url = imageUrl },
-                                    new CuiRectTransformComponent { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                                }
-                            });
-                        }
-                        else
+                                new CuiRawImageComponent { Url = imageUrl },
+                                new CuiRectTransformComponent { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                            }
+                        });
+                    }
+                    else
+                    {
+                        // Fallback if image not found
+                        container.Add(new CuiLabel
                         {
-                            // Fallback if image URL is empty
-                            container.Add(new CuiLabel
-                            {
-                                Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
-                                RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
-                            }, secondaryPanel);
-                        }
+                            Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                            RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                        }, secondaryPanel);
                     }
                 }
+                catch
+                {
+                    // Fallback on error
+                    container.Add(new CuiLabel
+                    {
+                        Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                        RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
+                    }, secondaryPanel);
+                }
             }
-            catch (Exception ex)
+            else
             {
-                Puts($"[KillaUIv2] Error loading secondary weapon image: {ex.Message}");
-                // Fallback on error
+                // ImageLibrary not available - show placeholder
                 container.Add(new CuiLabel
                 {
-                    Text = { Text = "📷", FontSize = 24, Align = TextAnchor.MiddleCenter, Color = COLOR_TEXT_DIM },
+                    Text = {
+                        Text = "📷\n[Weapon Image]",
+                        FontSize = 14,
+                        Align = TextAnchor.MiddleCenter,
+                        Color = COLOR_TEXT_DIM
+                    },
                     RectTransform = { AnchorMin = "0.2 0.15", AnchorMax = "0.8 0.4" }
                 }, secondaryPanel);
             }
@@ -1533,11 +1462,6 @@ namespace Oxide.Plugins
         
         private string GetArmorDisplayName(string armorId)
         {
-            if (string.IsNullOrEmpty(armorId))
-            {
-                return "Unknown Armor";
-            }
-            
             // Map armor IDs to display names
             switch (armorId.ToLower())
             {
@@ -1558,20 +1482,9 @@ namespace Oxide.Plugins
                 case "tactical.gloves": return "Tactical Gloves";
                 case "burlap.gloves": return "Burlap Gloves";
                 default:
-                    try
-                    {
-                        // Try to extract a readable name from the armor ID
-                        string name = armorId.Replace(".", " ").Replace("_", " ");
-                        if (name.Length > 0)
-                        {
-                            return $"{char.ToUpper(name[0])}{name.Substring(1)}";
-                        }
-                        return armorId; // Return as-is if empty after processing
-                    }
-                    catch
-                    {
-                        return armorId; // Return original if any error
-                    }
+                    // Try to extract a readable name from the armor ID
+                    string name = armorId.Replace(".", " ").Replace("_", " ");
+                    return char.ToUpper(name[0]) + name.Substring(1);
             }
         }
         
@@ -1580,41 +1493,27 @@ namespace Oxide.Plugins
             if (!_playerStates.ContainsKey(playerId))
             {
                 _playerStates[playerId] = new PlayerUIState();
-                LogDebug($"Created new UI state for player {playerId}");
             }
             return _playerStates[playerId];
         }
 
         private string GetPlayerArmorType(ulong playerId, string slot)
         {
-            if (string.IsNullOrEmpty(slot))
-            {
-                PrintWarning($"[KillaUIv2] GetPlayerArmorType called with null/empty slot for player {playerId}");
-                return "metal.facemask"; // Safe default
-            }
-            
             var state = GetPlayerState(playerId);
             if (state.ArmorSlotTypes.ContainsKey(slot))
-            {
                 return state.ArmorSlotTypes[slot];
+            
+            // Return defaults based on slot
+            switch (slot)
+            {
+                case "head": return "metal.facemask";
+                case "chest_armor": return "metal.plate.torso";
+                case "chest_clothing": return "roadsign.jacket";
+                case "pants": return "pants";
+                case "leg_armor": return "roadsign.kilt";
+                case "feet": return "shoes.boots";
+                default: return "burlap.shirt"; // Generic fallback
             }
-            
-            // Return defaults based on slot (case-insensitive comparison)
-            if (string.Equals(slot, "head", StringComparison.OrdinalIgnoreCase))
-                return "metal.facemask";
-            if (string.Equals(slot, "chest_armor", StringComparison.OrdinalIgnoreCase))
-                return "metal.plate.torso";
-            if (string.Equals(slot, "chest_clothing", StringComparison.OrdinalIgnoreCase))
-                return "roadsign.jacket";
-            if (string.Equals(slot, "pants", StringComparison.OrdinalIgnoreCase))
-                return "pants";
-            if (string.Equals(slot, "leg_armor", StringComparison.OrdinalIgnoreCase))
-                return "roadsign.kilt";
-            if (string.Equals(slot, "feet", StringComparison.OrdinalIgnoreCase))
-                return "shoes.boots";
-            
-            PrintWarning($"[KillaUIv2] Unknown armor slot: {slot}");
-            return "burlap.shirt"; // Generic fallback
         }
 
         private void SetPlayerArmorType(ulong playerId, string slot, string armorType)
@@ -2742,20 +2641,10 @@ namespace Oxide.Plugins
         [ConsoleCommand("killaui.tab")]
         private void CmdChangeTab(ConsoleSystem.Arg arg)
         {
-            var player = arg?.Player();
-            if (player == null || !player.IsConnected)
-            {
-                return;
-            }
+            var player = arg.Player();
+            if (player == null) return;
             
-            string tab = arg.GetString(0, DEFAULT_TAB);
-            
-            // Validate tab name (case-insensitive)
-            if (!VALID_TABS.Any(t => string.Equals(t, tab, StringComparison.OrdinalIgnoreCase)))
-            {
-                PrintWarning($"[KillaUIv2] Invalid tab requested: {tab}");
-                tab = DEFAULT_TAB;
-            }
+            string tab = arg.GetString(0, "play");
             
             // Update state
             if (!_playerStates.ContainsKey(player.userID))
@@ -2794,49 +2683,17 @@ namespace Oxide.Plugins
         [ConsoleCommand("killaui.weapon.cycle")]
         private void CmdWeaponCycle(ConsoleSystem.Arg arg)
         {
-            var player = arg?.Player();
-            if (player == null || !player.IsConnected)
-            {
-                return;
-            }
+            var player = arg.Player();
+            if (player == null) return;
             
             string slot = arg.GetString(0, "primary");
             int direction = arg.GetInt(1, 1);
             
-            // Validate slot
-            if (slot != "primary" && slot != "secondary")
-            {
-                PrintWarning($"[KillaUIv2] Invalid weapon slot: {slot}");
-                return;
-            }
+            // Call KillaDome to cycle weapon
+            KillaDome?.Call("CycleWeapon", player, slot, direction);
             
-            // Validate direction
-            if (direction != 1 && direction != -1)
-            {
-                PrintWarning($"[KillaUIv2] Invalid direction: {direction}");
-                direction = 1; // Default to next
-            }
-            
-            // Verify KillaDome is available
-            if (KillaDome == null || !KillaDome.IsLoaded)
-            {
-                player.ChatMessage("Weapon cycling unavailable. Please contact an administrator.");
-                return;
-            }
-            
-            try
-            {
-                // Call KillaDome to cycle weapon
-                KillaDome.Call("CycleWeapon", player, slot, direction);
-                
-                // Refresh UI
-                ShowMainUI(player, "loadouts");
-            }
-            catch (Exception ex)
-            {
-                PrintError($"[KillaUIv2] Error cycling weapon: {ex.Message}");
-                player.ChatMessage("Error cycling weapon. Please try again.");
-            }
+            // Refresh UI
+            ShowMainUI(player, "loadouts");
         }
         
         [ConsoleCommand("killaui.attachment.category")]
@@ -2872,11 +2729,8 @@ namespace Oxide.Plugins
         [ConsoleCommand("killaui.attachment.apply")]
         private void CmdAttachmentApply(ConsoleSystem.Arg arg)
         {
-            var player = arg?.Player();
-            if (player == null || !player.IsConnected)
-            {
-                return;
-            }
+            var player = arg.Player();
+            if (player == null) return;
             
             if (arg.Args == null || arg.Args.Length == 0)
             {
@@ -2885,38 +2739,17 @@ namespace Oxide.Plugins
             }
             
             string attachmentId = arg.Args[0];
-            if (string.IsNullOrEmpty(attachmentId))
-            {
-                player.ChatMessage("Error: Invalid attachment ID.");
-                return;
-            }
-            
-            // Verify KillaDome is available
-            if (KillaDome == null || !KillaDome.IsLoaded)
-            {
-                player.ChatMessage("Attachment system unavailable. Please contact an administrator.");
-                return;
-            }
-            
             var state = GetPlayerState(player.userID);
             
+            // Call KillaDome to apply attachment
             try
             {
-                // Call KillaDome to apply attachment
-                var result = KillaDome.Call("ApplyAttachment", player.userID, state.CurrentEditingWeaponSlot, state.CurrentAttachmentCategory, attachmentId);
-                
-                if (result == null || (result is bool && !(bool)result))
-                {
-                    player.ChatMessage("Failed to apply attachment. You may not own this item.");
-                }
-                else
-                {
-                    player.ChatMessage($"Attachment applied to {state.CurrentEditingWeaponSlot} weapon!");
-                }
+                KillaDome?.Call("ApplyAttachment", player.userID, state.CurrentEditingWeaponSlot, state.CurrentAttachmentCategory, attachmentId);
+                player.ChatMessage($"Attachment applied to {state.CurrentEditingWeaponSlot} weapon!");
             }
             catch (Exception ex)
             {
-                PrintError($"[KillaUIv2] Error applying attachment: {ex.Message}");
+                Puts($"[KillaUIv2] Error applying attachment: {ex.Message}");
                 player.ChatMessage("Failed to apply attachment. Contact an administrator.");
             }
             
@@ -3073,11 +2906,8 @@ namespace Oxide.Plugins
         [ConsoleCommand("killaui.store.purchase")]
         private void CmdStorePurchase(ConsoleSystem.Arg arg)
         {
-            var player = arg?.Player();
-            if (player == null || !player.IsConnected)
-            {
-                return;
-            }
+            var player = arg.Player();
+            if (player == null) return;
             
             if (arg.Args == null || arg.Args.Length < 2)
             {
@@ -3088,44 +2918,23 @@ namespace Oxide.Plugins
             string itemId = arg.Args[0];
             int price = arg.GetInt(1, 0);
             
-            if (string.IsNullOrEmpty(itemId))
-            {
-                player.ChatMessage("Error: Invalid item ID.");
-                return;
-            }
-            
-            if (price <= 0)
-            {
-                player.ChatMessage("Error: Invalid price.");
-                return;
-            }
-            
-            // Verify KillaDome is available
-            if (KillaDome == null || !KillaDome.IsLoaded)
-            {
-                player.ChatMessage("Store unavailable. Please contact an administrator.");
-                return;
-            }
-            
             // Call KillaDome to purchase item
             try
             {
-                var result = KillaDome.Call("PurchaseItem", player.userID, itemId, price);
+                var result = KillaDome?.Call("PurchaseItem", player.userID, itemId, price);
                 
                 if (result != null && (bool)result)
                 {
                     player.ChatMessage($"✓ Successfully purchased {itemId} for {price} Blood Tokens!");
-                    Effect.server.Run(EFFECT_BUY, player.transform.position);
                 }
                 else
                 {
                     player.ChatMessage("❌ Purchase failed. Not enough Blood Tokens or item already owned.");
-                    Effect.server.Run(EFFECT_DENY, player.transform.position);
                 }
             }
             catch (Exception ex)
             {
-                PrintError($"[KillaUIv2] Error during purchase: {ex.Message}");
+                Puts($"[KillaUIv2] Error during purchase: {ex.Message}");
                 player.ChatMessage("❌ Purchase failed. Contact an administrator.");
             }
             
@@ -3209,15 +3018,12 @@ namespace Oxide.Plugins
         
         private bool IsAdmin(BasePlayer player)
         {
-            if (player == null) return false;
-            
             // Check if player has admin permission or is server admin
             return player.IsAdmin || permission.UserHasPermission(player.UserIDString, "killadome.admin");
         }
         
         private void LogDebug(string message)
         {
-            // Always log debug messages with DEBUG tag for clarity
             Puts($"[DEBUG] {message}");
         }
         

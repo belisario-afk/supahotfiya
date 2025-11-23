@@ -1056,6 +1056,16 @@ namespace Oxide.Plugins
             SendReply(arg, $"Reset progress for player {targetId}");
         }
         
+        [ConsoleCommand("killadome.joinqueue")]
+        private void CmdJoinQueue(ConsoleSystem.Arg arg)
+        {
+            var player = arg?.Player();
+            if (player == null) return;
+            
+            _domeManager?.AddToQueue(player.userID);
+            player.ChatMessage("✓ Added to queue!");
+        }
+        
         #endregion
         
         #region Chat Commands
@@ -1443,7 +1453,9 @@ namespace Oxide.Plugins
             
             return new Dictionary<string, object>
             {
-                ["Tokens"] = session.Profile.Tokens,
+                ["tokens"] = session.Profile.Tokens,
+                ["totalKills"] = session.Profile.TotalKills,
+                ["totalDeaths"] = session.Profile.TotalDeaths,
                 ["EditingWeaponSlot"] = session.EditingWeaponSlot,
                 ["SelectedLoadoutTab"] = session.SelectedLoadoutTab,
                 ["SelectedAttachmentCategory"] = session.SelectedAttachmentCategory,

@@ -3220,6 +3220,8 @@ namespace Oxide.Plugins
             // This is just the UI trigger
         }
         
+        #endregion
+        
         #region Helper Methods
         
         private bool IsAdmin(BasePlayer player)

@@ -423,8 +423,13 @@ namespace Oxide.Plugins
         
         private void RenderPlayTab(CuiElementContainer container, string parent, BasePlayer player)
         {
+            Puts($"[DEBUG] RenderPlayTab called for {player.displayName}");
+            
             // Get session data from KillaDome
             var sessionData = KillaDome?.Call("GetSessionData", player.userID) as Dictionary<string, object>;
+            
+            Puts($"[DEBUG] KillaDome plugin reference: {(KillaDome == null ? "NULL" : "OK")}");
+            Puts($"[DEBUG] sessionData: {(sessionData == null ? "NULL" : $"has {sessionData.Count} keys")}");
             
             int tokens = 0;
             int kills = 0;
@@ -436,6 +441,12 @@ namespace Oxide.Plugins
                 kills = Convert.ToInt32(sessionData.ContainsKey("totalKills") ? sessionData["totalKills"] : 0);
                 int deaths = Convert.ToInt32(sessionData.ContainsKey("totalDeaths") ? sessionData["totalDeaths"] : 0);
                 kd = deaths > 0 ? (float)kills / deaths : kills;
+                
+                Puts($"[DEBUG] Parsed from sessionData: tokens={tokens}, kills={kills}, deaths={deaths}, kd={kd:F2}");
+            }
+            else
+            {
+                Puts("[DEBUG] sessionData is NULL - using default values");
             }
             
             // Center join button
@@ -2826,10 +2837,18 @@ namespace Oxide.Plugins
             var player = arg.Player();
             if (player == null) return;
             
-            if (arg.Args == null || arg.Args.Length < 2) return;
+            Puts($"[DEBUG] CmdArmorType called by {player.displayName}");
+            
+            if (arg.Args == null || arg.Args.Length < 2)
+            {
+                Puts("[DEBUG] CmdArmorType - Invalid args");
+                return;
+            }
             
             string uiSlot = arg.Args[0]; // UI slot name like "chest_armor", "leg_armor", etc.
             int direction = arg.GetInt(1, 1);
+            
+            Puts($"[DEBUG] UI Slot: {uiSlot}, Direction: {direction}");
             
             // Map UI slot names to KillaDome logical slot names
             string killaDomeSlot = uiSlot switch
@@ -2843,11 +2862,15 @@ namespace Oxide.Plugins
                 _ => uiSlot // fallback to original if not mapped
             };
             
+            Puts($"[DEBUG] Mapped to KillaDome slot: {killaDomeSlot}");
+            Puts($"[DEBUG] KillaDome plugin reference: {(KillaDome == null ? "NULL" : "OK")}");
+            
             // Get player state
             var state = GetPlayerState(player.userID);
             
             // Call KillaDome to cycle armor type with mapped slot name
             KillaDome?.Call("CycleArmor", player.userID, killaDomeSlot, direction);
+            Puts($"[DEBUG] Called CycleArmor on KillaDome");
             
             // Refresh UI to show the new armor type
             ShowMainUI(player, "loadouts");

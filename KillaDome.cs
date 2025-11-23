@@ -1060,10 +1060,25 @@ namespace Oxide.Plugins
         private void CmdJoinQueue(ConsoleSystem.Arg arg)
         {
             var player = arg?.Player();
-            if (player == null) return;
+            Puts($"[DEBUG] CmdJoinQueue called - Player: {player?.displayName ?? "NULL"}");
             
+            if (player == null)
+            {
+                Puts("[DEBUG] CmdJoinQueue - Player is null, returning");
+                return;
+            }
+            
+            if (_domeManager == null)
+            {
+                Puts("[DEBUG] CmdJoinQueue - _domeManager is NULL!");
+                player.ChatMessage("⚠️ Queue system not initialized!");
+                return;
+            }
+            
+            Puts($"[DEBUG] Adding {player.displayName} to queue");
             _domeManager?.AddToQueue(player.userID);
             player.ChatMessage("✓ Added to queue!");
+            Puts($"[DEBUG] Successfully added {player.displayName} to queue");
         }
         
         #endregion
@@ -1436,22 +1451,28 @@ namespace Oxide.Plugins
         [HookMethod("GetSessionData")]
         public Dictionary<string, object> GetSessionData(ulong steamId)
         {
+            Puts($"[DEBUG] GetSessionData called for steamId: {steamId}");
             var session = GetSession(steamId);
             
             // Create session on demand if it doesn't exist
             if (session == null)
             {
+                Puts($"[DEBUG] Session null for {steamId}, creating on demand");
                 var player = BasePlayer.FindByID(steamId);
-                if (player == null) return null;
+                if (player == null)
+                {
+                    Puts($"[DEBUG] Player not found for steamId: {steamId}");
+                    return null;
+                }
                 
                 var profile = _saveManager.LoadPlayerProfile(steamId);
                 session = new PlayerSession(player, profile);
                 _activeSessions[steamId] = session;
                 
-                LogDebug($"Created session on demand for {player.displayName}");
+                Puts($"[DEBUG] Created session for {player.displayName} - Tokens: {session.Profile.Tokens}, Kills: {session.Profile.TotalKills}");
             }
             
-            return new Dictionary<string, object>
+            var data = new Dictionary<string, object>
             {
                 ["tokens"] = session.Profile.Tokens,
                 ["totalKills"] = session.Profile.TotalKills,
@@ -1463,6 +1484,9 @@ namespace Oxide.Plugins
                 ["GunsStorePage"] = session.GunsStorePage,
                 ["SkinsStorePage"] = session.SkinsStorePage
             };
+            
+            Puts($"[DEBUG] Returning session data: tokens={data["tokens"]}, kills={data["totalKills"]}, deaths={data["totalDeaths"]}");
+            return data;
         }
         
         /// <summary>
@@ -1566,22 +1590,28 @@ namespace Oxide.Plugins
         [HookMethod("GetPlayerProfile")]
         public Dictionary<string, object> GetPlayerProfile(ulong steamId)
         {
+            Puts($"[DEBUG] GetPlayerProfile called for steamId: {steamId}");
             var session = GetSession(steamId);
             
             // Create session on demand if it doesn't exist
             if (session == null)
             {
+                Puts($"[DEBUG] Profile session null, creating on demand");
                 var player = BasePlayer.FindByID(steamId);
-                if (player == null) return null;
+                if (player == null)
+                {
+                    Puts($"[DEBUG] Player not found for profile request: {steamId}");
+                    return null;
+                }
                 
                 var profile = _saveManager.LoadPlayerProfile(steamId);
                 session = new PlayerSession(player, profile);
                 _activeSessions[steamId] = session;
                 
-                LogDebug($"Created session on demand for {player.displayName}");
+                Puts($"[DEBUG] Created profile session for {player.displayName}");
             }
             
-            return new Dictionary<string, object>
+            var profileData = new Dictionary<string, object>
             {
                 // Use lowercase keys to match what KillaUIv2 expects
                 ["kills"] = session.Profile.TotalKills,
@@ -1599,6 +1629,9 @@ namespace Oxide.Plugins
                 ["losses"] = 0,
                 ["total_playtime"] = 0
             };
+            
+            Puts($"[DEBUG] Returning profile: kills={profileData["kills"]}, deaths={profileData["deaths"]}, tokens={profileData["blood_tokens"]}");
+            return profileData;
         }
         
         /// <summary>
